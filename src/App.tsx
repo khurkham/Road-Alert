@@ -278,7 +278,6 @@ export default function App() {
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
-    <button className="map-menu-trigger" aria-label="เปิดเมนู Road Alert" onClick={()=>setMobileMenuOpen(true)}><Menu size={19}/> เมนู</button>
     {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet road-tools-sheet" role="dialog" aria-modal="true" aria-label="เครื่องมือ Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เครื่องมือ Road Alert</strong><small>เส้นทาง · รถใกล้เคียง · เหตุอันตราย</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div>
             <section className="route-panel">
         <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
