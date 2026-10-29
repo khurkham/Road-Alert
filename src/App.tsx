@@ -30,8 +30,8 @@ function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destination
       if(!map.getSource("road-alert-satellite")){
         map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,maxzoom:19,attribution:"Imagery © Esri"});
         const layers=map.getStyle().layers||[];
-        const firstSymbol=layers.find(l=>l.type==="symbol")?.id;
-        map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":1}},firstSymbol);
+        const firstLayer=layers[0]?.id;
+        map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":0.78}},firstLayer);
       }
       map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",0.12)}catch{}}});
     }else{
