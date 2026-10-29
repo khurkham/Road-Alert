@@ -59,3 +59,13 @@ npm run worker:dev
 This is a trial, not a collision avoidance or safety-certified navigation system. Only participating devices that consent to share can appear; GPS does not detect cars that are not sharing, vehicles hidden around bends, or vehicles behind obstacles. Mobile browsers may suspend GPS in background tabs. Do not rely on this prototype as a substitute for safe driving.
 
 Before public use, add stronger abuse protection/rate limiting and privacy review. Standard OpenStreetMap tile service has usage policies and capacity limits; choose a suitable tile provider before scaling.
+
+
+## ทดลองใช้ฟีเจอร์เส้นทางและเตือนรถใกล้เคียง
+
+- ค้นหาเส้นทางด้วยชื่อสถานที่ต้นทางและปลายทาง แล้วแสดงเส้นทางขับรถบนแผนที่
+- พิมพ์ `ตำแหน่งของฉัน` เป็นจุดเริ่มต้นได้เมื่อเว็บมีตำแหน่ง GPS แล้ว
+- เมื่อเปิดแชร์ตำแหน่ง ระบบแสดงรถคันอื่นที่ยินยอมแชร์และเตือนเมื่ออยู่ห่างไม่เกิน 500 เมตร พร้อมสั่นบนอุปกรณ์ที่รองรับ
+- การค้นหาสถานที่ใช้ Nominatim เมื่อผู้ใช้กดค้นหา และการคำนวณเส้นทางใช้ OSRM demo; บริการสาธารณะเหล่านี้มีข้อจำกัดและไม่มี SLA
+
+**ข้อจำกัดความปลอดภัย:** ระบบไม่สามารถตรวจจับรถที่ไม่แชร์ตำแหน่ง ไม่ได้คาดการณ์การชน และไม่ใช่ระบบนำทางหรือระบบความปลอดภัยที่รับประกันได้ ห้ามพึ่งพาระบบนี้แทนการขับขี่อย่างระมัดระวังหรือใช้งานโทรศัพท์ขณะขับรถ.
