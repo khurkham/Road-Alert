@@ -52,7 +52,7 @@ function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destination
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
     map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);setStyleReady(true);});
-    map.on("error",event=>{if(event.sourceId==="road-alert-satellite"){propsRef.current.onMapError("ภาพดาวเทียมโหลดไม่สำเร็จ จึงกลับไปใช้แผนที่ถนน");if(map.getLayer("road-alert-satellite-layer"))map.setLayoutProperty("road-alert-satellite-layer","visibility","none");}});
+    map.on("error",event=>{const sourceId=(event as unknown as {sourceId?:string}).sourceId;if(sourceId==="road-alert-satellite"){propsRef.current.onMapError("ภาพดาวเทียมโหลดไม่สำเร็จ จึงกลับไปใช้แผนที่ถนน");if(map.getLayer("road-alert-satellite-layer"))map.setLayoutProperty("road-alert-satellite-layer","visibility","none");}});
     map.on("click",e=>{const p=propsRef.current;if(p.pickTarget)p.onPick({lat:e.lngLat.lat,lng:e.lngLat.lng},p.pickTarget);});
     return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
   },[setupStyle]);
