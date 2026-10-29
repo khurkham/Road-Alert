@@ -174,7 +174,9 @@ export default function App() {
       const result = await response.json() as { code: string; routes?: RouteResult[] };
       if (result.code !== "Ok" || !result.routes?.length) throw new Error("ไม่พบเส้นทางขับรถระหว่างสองจุดนี้");
       const route = result.routes[0];
-      setOriginPoint(start);\n      setDestinationPoint(end);\n      setRouteOptions(result.routes);
+      setOriginPoint(start);
+      setDestinationPoint(end);
+      setRouteOptions(result.routes);
       setSelectedRouteIndex(0);
       const points = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       setRoutePoints(points);
