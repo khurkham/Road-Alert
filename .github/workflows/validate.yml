@@ -1,9 +1,9 @@
 name: Validate Road Alert
 on:
   push:
-    branches: [setup/road-alert-trial]
+    branches: [setup/road-alert-trial, main]
   pull_request:
-    branches: [setup/road-alert-trial]
+    branches: [setup/road-alert-trial, main]
 jobs:
   build:
     runs-on: ubuntu-latest
