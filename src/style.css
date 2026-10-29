@@ -118,3 +118,36 @@
  .navigation-layout .map-wrap{margin:0 8px;height:72dvh;min-height:440px;max-height:760px;border-radius:15px}
  .maplibre-map .maplibregl-ctrl-bottom-right{bottom:72px}
 }
+
+/* Make the tools entry point impossible to miss on desktop and mobile. */
+.topbar-menu-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-left:auto;margin-right:12px;padding:10px 14px;border:1px solid #4c7968;border-radius:12px;background:#13865d;color:#fff;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px #0003}
+.topbar{position:relative;z-index:1200}
+.navigation-layout{display:block!important;min-height:0!important;margin-top:10px!important}
+.navigation-layout .map-wrap{display:block;width:auto;margin:0 12px!important;height:calc(100vh - 165px)!important;min-height:520px!important;max-height:none!important;border-radius:16px!important}
+.navigation-layout>.route-panel{display:none!important}
+.map-menu-trigger{display:flex!important;position:absolute!important;z-index:2200!important;left:14px!important;top:14px!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}
+.map-tools{z-index:2100!important}
+.map-traffic-status{z-index:2050!important;pointer-events:none}
+.mobile-menu-backdrop{z-index:10000!important}
+.mobile-menu-sheet{z-index:10001!important}
+.place-search-field{position:relative;display:block;width:100%}
+.place-search-field>input{width:100%;box-sizing:border-box}
+.place-suggestions{position:absolute;z-index:12000;top:calc(100% + 5px);left:0;right:0;max-height:min(48vh,320px);overflow-y:auto;background:#fdfefe;color:#17232b;border:1px solid #cad5dc;border-radius:12px;box-shadow:0 10px 32px #0005;padding:5px}
+.place-suggestions button{display:flex;align-items:flex-start;gap:10px;width:100%;padding:11px 10px;border:0;border-radius:8px;background:transparent;color:#17232b;text-align:left;cursor:pointer}
+.place-suggestions button:hover,.place-suggestions button:focus{background:#e8f5ef;outline:2px solid #16875d}
+.place-suggestions button>svg{flex:0 0 auto;margin-top:2px;color:#14875d}
+.place-suggestions button span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.place-suggestions button strong{font-size:13px}
+.place-suggestions button small{font-size:11px;line-height:1.45;color:#596a75;overflow-wrap:anywhere}
+.road-tools-sheet .route-panel,.road-tools-sheet .content{display:grid!important}
+@media(max-width:700px){
+ .topbar{display:flex!important;align-items:center;gap:8px;padding:10px 12px!important}
+ .topbar-menu-btn{margin-left:auto;margin-right:0;padding:9px 11px;font-size:12px;flex:0 0 auto}
+ .trial-badge{display:none!important}
+ .navigation-layout{display:block!important}
+ .navigation-layout .map-wrap{width:auto;margin:0 8px!important;height:calc(100dvh - 150px)!important;min-height:460px!important;max-height:none!important;border-radius:14px!important}
+ .map-menu-trigger{left:8px!important;top:8px!important;padding:10px 12px!important;font-size:13px!important}
+ .map-traffic-status{top:58px!important;left:8px!important;max-width:calc(100% - 16px)!important}
+ .road-tools-sheet{max-height:88dvh!important;overflow-y:auto!important;padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
+ .place-suggestions{max-height:38dvh}
+}
