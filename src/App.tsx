@@ -67,7 +67,7 @@ export default function App() {
   const [pickTarget, setPickTarget] = useState<"origin" | "destination" | null>(null);
   const [originPoint, setOriginPoint] = useState<RoutePoint | null>(null);
   const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
-  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);\n  const [routeOptions, setRouteOptions] = useState<RouteResult[]>([]);\n  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [routeSummary, setRouteSummary] = useState("");
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeError, setRouteError] = useState("");
@@ -162,16 +162,18 @@ export default function App() {
   const searchRoute = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!origin.trim() || !destination.trim()) { setRouteError("กรุณากรอกจุดเริ่มต้นและปลายทาง"); return; }
-    setRouteBusy(true); setRouteError(""); setRouteSummary(""); setRouteSteps([]);setCurrentStep(0);announcedStep.current=-1;
+    setRouteBusy(true); setRouteError(""); setRouteSummary(""); setRouteSteps([]); setRouteOptions([]); setSelectedRouteIndex(0); setCurrentStep(0); announcedStep.current=-1;
     try {
       const start = originPoint || (origin.trim().toLowerCase() === "ตำแหน่งของฉัน" && position ? { lat: position.lat, lng: position.lng } : await geocode(origin.trim()));
       const end = destinationPoint || await geocode(destination.trim());
-      const url = "https://router.project-osrm.org/route/v1/driving/" + start.lng + "," + start.lat + ";" + end.lng + "," + end.lat + "?overview=full&steps=true&geometries=geojson";
+      const url = "https://router.project-osrm.org/route/v1/driving/" + start.lng + "," + start.lat + ";" + end.lng + "," + end.lat + "?overview=full&steps=true&alternatives=true&geometries=geojson";
       const response = await fetch(url);
       if (!response.ok) throw new Error("บริการคำนวณเส้นทางไม่พร้อมใช้งาน");
       const result = await response.json() as { code: string; routes?: RouteResult[] };
       if (result.code !== "Ok" || !result.routes?.length) throw new Error("ไม่พบเส้นทางขับรถระหว่างสองจุดนี้");
       const route = result.routes[0];
+      setRouteOptions(result.routes);
+      setSelectedRouteIndex(0);
       const points = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       setRoutePoints(points);
       setRouteSteps((route.legs||[]).flatMap(l=>l.steps).filter(s=>s.maneuver?.location));
@@ -184,6 +186,17 @@ export default function App() {
   };
 
   useEffect(()=>{if(!position||!routeSteps.length)return;let best=currentStep,dist=Infinity;for(let i=currentStep;i<routeSteps.length;i++){const loc=routeSteps[i].maneuver.location;const d=distanceMeters(position,{lat:loc[1],lng:loc[0]});if(d<dist){dist=d;best=i;}}if(best>currentStep&&dist<100){setCurrentStep(best);if(voiceOn&&announcedStep.current!==best){announcedStep.current=best;speakThai(stepText(routeSteps[best]));}}},[position,routeSteps,currentStep,voiceOn]);
+  const chooseRoute = (route: RouteResult, index: number) => {
+    setSelectedRouteIndex(index);
+    setRoutePoints(route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+    const steps = (route.legs || []).flatMap(leg => leg.steps).filter(step => step.maneuver?.location);
+    setRouteSteps(steps);
+    setCurrentStep(0);
+    announcedStep.current = -1;
+    setRouteSummary("ระยะทางประมาณ " + (route.distance / 1000).toFixed(1) + " กม. · ใช้เวลาประมาณ " + Math.max(1, Math.round(route.duration / 60)) + " นาที");
+    if (voiceOn && steps[0]) speakThai("เริ่มนำทาง " + stepText(steps[0]));
+  };
+
   const routeStart = routePoints[0];
   const routeEnd = routePoints[routePoints.length - 1];
 
@@ -198,6 +211,7 @@ export default function App() {
       </form>
       {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
       {routeError && <p className="route-error"><AlertTriangle size={15}/>{routeError}</p>}
+      {routeOptions.length > 0 && <div className="route-options"><h3>เลือกเส้นทาง</h3>{routeOptions.map((route,index)=><button type="button" key={index} className={selectedRouteIndex===index?"route-option selected":"route-option"} onClick={()=>chooseRoute(route,index)}><span className="route-option-icon"><Navigation size={18}/></span><span className="route-option-main"><strong>{Math.max(1,Math.round(route.duration/60))} นาที</strong><small>{(route.distance/1000).toFixed(1)} กม. · {index===0?"เส้นทางแนะนำ":"เส้นทางทางเลือก "+(index+1)}</small></span>{selectedRouteIndex===index&&<span className="route-option-check">เลือกแล้ว</span>}</button>)}</div>}
       <div className="map-pick-controls"><span>หรือเลือกจุดจากแผนที่</span><button type="button" className={pickTarget==="origin"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="origin"?null:"origin")}><MapPin size={15}/>เลือกจุดเริ่มต้น</button><button type="button" className={pickTarget==="destination"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="destination"?null:"destination")}><MapPin size={15}/>เลือกปลายทาง</button>{pickTarget&&<small>แตะตำแหน่งบนแผนที่เพื่อกำหนด{pickTarget==="origin"?"จุดเริ่มต้น":"ปลายทาง"}</small>}</div>
       <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
