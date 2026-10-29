@@ -14,12 +14,12 @@ type RouteResult = { distance: number; duration: number; geometry: { coordinates
 const STREET_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 type RoadMapProps = {
-  mapLayer: "standard" | "satellite"; position: Position | null; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
+  mapLayer: "standard" | "satellite"; driveMode: boolean; position: Position | null; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
   routePoints: RoutePoint[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
   onPick: (point: RoutePoint, target: "origin" | "destination") => void;
   onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
 };
-function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
+function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
   const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
   const [styleReady,setStyleReady]=useState(false);
   const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
@@ -48,7 +48,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
   },[]);
   useEffect(()=>{
     if(!host.current||mapRef.current)return;
-    const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:55,bearing:0, maxPitch:70});
+    const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:driveMode?62:48,bearing:0, maxPitch:70});
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
     map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);setStyleReady(true);});
@@ -57,7 +57,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
   },[setupStyle]);
   useEffect(()=>{const map=mapRef.current;if(!map)return;const apply=()=>setupStyle(map,mapLayer);if(map.isStyleLoaded())apply();else map.once("style.load",apply);},[mapLayer,setupStyle]);
   useEffect(()=>{const map=mapRef.current;if(!map)return;const source=map.getSource("road-alert-route") as GeoJSONSource|undefined;if(source)source.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routePoints.map(p=>[p.lng,p.lat])}});if(routePoints.length>1)map.fitBounds(new maplibregl.LngLatBounds([routePoints[0].lng,routePoints[0].lat],[routePoints[routePoints.length-1].lng,routePoints[routePoints.length-1].lat]),{padding:55,maxZoom:16});},[routePoints]);
-  useEffect(()=>{const map=mapRef.current;if(!map||!position)return;map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),15),duration:500});},[position?.lat,position?.lng]);
+  useEffect(()=>{const map=mapRef.current;if(!map||!position)return;map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),driveMode?17:15),pitch:driveMode?62:48,bearing:driveMode&&position.heading!==null?position.heading:0,duration:500});},[position?.lat,position?.lng,position?.heading,driveMode]);
   useEffect(()=>{
     const map=mapRef.current;if(!map||!map.isStyleLoaded())return;
     markersRef.current.forEach(m=>m.remove());markersRef.current=[];
@@ -104,6 +104,7 @@ export default function App() {
   const [sharing, setSharing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mapLayer, setMapLayer] = useState<"standard" | "satellite">("standard");
+  const [driveMode, setDriveMode] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -280,8 +281,8 @@ export default function App() {
       <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
-      <RoadMap mapLayer={mapLayer} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
-      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>
+      <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
+      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
