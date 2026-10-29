@@ -14,21 +14,21 @@ type RouteResult = { distance: number; duration: number; geometry: { coordinates
 const STREET_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 type RoadMapProps = {
-  mapLayer: "standard" | "satellite"; driveMode: boolean; position: Position | null; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
+  mapLayer: "standard" | "satellite"; driveMode: boolean; position: Position | null; onMapError: (message: string) => void; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
   routePoints: RoutePoint[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
   onPick: (point: RoutePoint, target: "origin" | "destination") => void;
   onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
 };
-function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
+function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
   const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
   const [styleReady,setStyleReady]=useState(false);
-  const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
-  propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
+  const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer,onMapError});
+  propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer,onMapError};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
     if(!map.isStyleLoaded())return;
     if(layer==="satellite"){
       if(!map.getSource("road-alert-satellite")){
-        map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,attribution:"Imagery © Esri"});
+        map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,maxzoom:19,attribution:"Imagery © Esri"});
         const layers=map.getStyle().layers||[];
         const firstSymbol=layers.find(l=>l.type==="symbol")?.id;
         map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":1}},firstSymbol);
@@ -52,6 +52,7 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
     map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);setStyleReady(true);});
+    map.on("error",event=>{if(event.sourceId==="road-alert-satellite"){propsRef.current.onMapError("ภาพดาวเทียมโหลดไม่สำเร็จ จึงกลับไปใช้แผนที่ถนน");if(map.getLayer("road-alert-satellite-layer"))map.setLayoutProperty("road-alert-satellite-layer","visibility","none");}});
     map.on("click",e=>{const p=propsRef.current;if(p.pickTarget)p.onPick({lat:e.lngLat.lat,lng:e.lngLat.lng},p.pickTarget);});
     return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
   },[setupStyle]);
@@ -70,7 +71,7 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
     if(position)add(position,'<span class="me-dot"></span>',"map-marker-me");
     if(originPoint)add(originPoint,"📍","map-marker-pin",true,"origin");
     if(destinationPoint)add(destinationPoint,"📍","map-marker-pin",true,"destination");
-    if(sharing)vehicles.filter(v=>Date.now()-v.updatedAt<120000).forEach(v=>add(v,"🚘","map-marker-car"));
+    vehicles.filter(v=>Date.now()-v.updatedAt<120000).forEach(v=>add(v,"🚘","map-marker-car"));
     hazards.filter(h=>Date.now()-h.createdAt<1800000).forEach(h=>add(h,h.type==="accident"?"🚨":h.type==="broken_vehicle"?"🚗":h.type==="obstacle"?"🪨":"⚠️","map-marker-hazard"));
   },[position,originPoint,destinationPoint,sharing,vehicles,hazards,mapLayer,styleReady]);
   return <div ref={host} className="map maplibre-map" aria-label="แผนที่นำทาง 3D"/>;
@@ -103,6 +104,7 @@ export default function App() {
   const [gpsMessage, setGpsMessage] = useState("กดปุ่มตำแหน่งเพื่อเริ่มใช้ GPS");
   const [sharing, setSharing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mapNotice, setMapNotice] = useState("");
   const [mapLayer, setMapLayer] = useState<"standard" | "satellite">("standard");
   const [driveMode, setDriveMode] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -268,8 +270,11 @@ export default function App() {
     <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>นำทาง 3D และแจ้งเตือนรถใกล้เคียง</p></div><span className="trial-badge">Road Alert</span></header>
     <div className="navigation-layout">
     <section className="map-wrap">
-      <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
-      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
+      <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} onMapError={message=>{setMapNotice(message);setMapLayer("standard");}} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
+      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>{setMapNotice("");setMapLayer(mapLayer==="standard"?"satellite":"standard");}}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
+      <button className="map-menu-trigger" aria-label="เปิดเมนู Road Alert" onClick={()=>setMobileMenuOpen(true)}><Menu size={18}/> เมนู</button>
+      <div className="map-traffic-status" role="status"><div className="traffic-count"><strong>{nearby.length}</strong><span>รถที่แชร์ตำแหน่ง</span></div><div className="traffic-count"><strong>{nearbyHazards.length}</strong><span>เหตุอันตราย</span></div>{nearby.length>0&&<div className="traffic-nearest"><strong>รถใกล้สุด {Math.round(nearby[0].distance)} ม.</strong><span>{nearby[0].speed!==null&&nearby[0].speed>=0?"ความเร็ว "+Math.round(nearby[0].speed*3.6)+" กม./ชม.":"ความเร็วไม่พร้อมใช้งาน"}</span></div>}</div>
+      {mapNotice&&<button className="map-fallback-notice" onClick={()=>setMapNotice("")}><AlertTriangle size={14}/>{mapNotice} ×</button>}
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
