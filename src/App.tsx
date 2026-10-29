@@ -202,7 +202,7 @@ export default function App() {
 
   return <main className="app-shell">
     <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>ค้นหาเส้นทางและแจ้งเตือนรถใกล้เคียง · รุ่นทดลอง</p></div><span className="trial-badge">ทดลองใช้</span></header>
-    <section className="route-panel">
+    <div className="navigation-layout">\n    <section className="route-panel">
       <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
       <form className="route-form" onSubmit={searchRoute}>
         <label>จาก<input value={origin} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือ เชียงใหม่" /></label>
@@ -233,7 +233,7 @@ export default function App() {
       <button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button>
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
-    <section className="content">
+    </div>\n    <section className="content">
       <div className="panel">
         <div className="panel-title"><div><h2>แชร์ตำแหน่งรถ</h2><p>ไม่มีบัญชีผู้ใช้ · เปิดแชร์เมื่อคุณยินยอมเท่านั้น</p></div><ShieldCheck size={24}/></div>
         {!sharing ? <button className="primary-btn" onClick={startSharing}><Radio size={18}/>ยินยอมและเริ่มแชร์ตำแหน่ง</button> : <button className="stop-btn" onClick={stopSharing}><Square size={16} fill="currentColor"/>หยุดแชร์ตำแหน่งทันที</button>}
