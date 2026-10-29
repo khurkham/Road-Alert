@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import maplibregl, { type Map as MapLibreMap, type GeoJSONSource } from "maplibre-gl";
+import maplibregl, { type Map as MapLibreMap, type Marker as MapLibreMarker, type GeoJSONSource } from "maplibre-gl";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren, Menu, X, Layers, Satellite, Box } from "lucide-react";
 
 type Position = { lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
@@ -20,7 +20,7 @@ type RoadMapProps = {
   onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
 };
 function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
-  const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<maplibregl.Marker[]>([]);\n  const [styleReady,setStyleReady]=useState(false);
+  const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);\n  const [styleReady,setStyleReady]=useState(false);
   const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
   propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
