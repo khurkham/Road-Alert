@@ -51,7 +51,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
     const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:55,bearing:0, maxPitch:70});
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
-    map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);});
+    map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);setStyleReady(true);});
     map.on("click",e=>{const p=propsRef.current;if(p.pickTarget)p.onPick({lat:e.lngLat.lat,lng:e.lngLat.lng},p.pickTarget);});
     return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
   },[setupStyle]);
