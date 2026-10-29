@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren } from "lucide-react";
+import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren, Menu, X, Layers, Satellite, Box } from "lucide-react";
 
 type Position = { lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
 type Vehicle = { id: string; lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
@@ -59,6 +59,8 @@ export default function App() {
   const [position, setPosition] = useState<Position | null>(null);
   const [gpsMessage, setGpsMessage] = useState("กดปุ่มตำแหน่งเพื่อเริ่มใช้ GPS");
   const [sharing, setSharing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mapLayer, setMapLayer] = useState<"standard" | "satellite">("standard");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -110,6 +112,8 @@ export default function App() {
     if (!("geolocation" in navigator)) { setNotice("อุปกรณ์นี้ไม่รองรับ GPS"); return; }
     if (!window.isSecureContext) { setNotice("การแชร์ GPS ต้องเปิดผ่าน HTTPS"); return; }
     setNotice("");
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+    setGpsMessage("กำลังขอสิทธิ์และค้นหา GPS...");
     setSharing(true);
     watchId.current = navigator.geolocation.watchPosition(async p => {
       const next: Position = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, speed: p.coords.speed, heading: p.coords.heading, updatedAt: Date.now() };
@@ -121,7 +125,19 @@ export default function App() {
         });
         if (!res.ok) setNotice("ส่งตำแหน่งไม่สำเร็จ โปรดตรวจสอบว่า Worker ได้ Deploy แล้ว");
       } catch { setNotice("เชื่อมต่อระบบแชร์ตำแหน่งไม่ได้"); }
-    }, e => { setGpsMessage("GPS ขัดข้อง: " + e.message); }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 });
+    }, e => {
+      if (e.code === 1) {
+        if (watchId.current !== null) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
+        setSharing(false);
+        setGpsMessage("ไม่ได้รับสิทธิ์ตำแหน่ง กรุณาอนุญาตในการตั้งค่าเว็บไซต์");
+        setNotice("สิทธิ์ตำแหน่งถูกปฏิเสธหรือถูกปิดไว้: กดไอคอนตั้งค่าข้างที่อยู่เว็บ > สิทธิ์ > ตำแหน่ง > อนุญาต แล้วโหลดหน้าใหม่");
+      } else if (e.code === 2) {
+        setGpsMessage("ยังหาตำแหน่ง GPS ไม่พบ ตรวจสอบ Location และสัญญาณ GPS");
+        setNotice("เปิด Location ของโทรศัพท์ และลองใกล้หน้าต่างหรือกลางแจ้ง ระบบจะลองรับตำแหน่งต่อเมื่อมีสัญญาณ");
+      } else {
+        setGpsMessage("GPS ใช้เวลานานกว่าปกติ กำลังรอตำแหน่ง...");
+      }
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
   };
 
   useEffect(() => {
@@ -205,7 +221,7 @@ export default function App() {
   const routeEnd = routePoints[routePoints.length - 1];
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>ค้นหาเส้นทางและแจ้งเตือนรถใกล้เคียง · รุ่นทดลอง</p></div><span className="trial-badge">ทดลองใช้</span></header>
+    <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>ค้นหาเส้นทางและแจ้งเตือนรถใกล้เคียง · รุ่นทดลอง</p></div><span className="trial-badge">ทดลองใช้</span><button className="mobile-menu-trigger" aria-label="เปิดเมนู" onClick={()=>setMobileMenuOpen(true)}><Menu size={21}/><span>เมนู</span></button></header>
     <div className="navigation-layout">
     <section className="route-panel">
       <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
@@ -222,7 +238,7 @@ export default function App() {
     </section>
     <section className="map-wrap">
       <MapContainer center={[19.3, 97.97]} zoom={9} zoomControl={false} className="map">
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {mapLayer === "standard" ? <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /> : <TileLayer attribution='Imagery &copy; Esri' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />}
         <MapClickSelector enabled={pickTarget!==null} onPick={point=>{if(pickTarget==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else if(pickTarget==="destination"){setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} />
         <Recenter position={position} />
         <FitRoute points={routePoints} />
@@ -235,12 +251,13 @@ export default function App() {
         {routeEnd && <Marker position={[routeEnd.lat, routeEnd.lng]} icon={pointIcon} />}
         {hazards.map(h=><Marker key={h.id} position={[h.lat,h.lng]} icon={hazardIcon(h.type)}/>)}
       </MapContainer>
-      <button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button>
+      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม":"แผนที่ถนน"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
+    {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet" role="dialog" aria-modal="true" aria-label="เมนู Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เมนู Road Alert</strong><small>เลือกเครื่องมือที่ต้องการ</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".route-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Navigation size={19}/>ค้นหาเส้นทาง</button><button className="menu-action" onClick={() => {setMapLayer("standard");setMobileMenuOpen(false);}}><Layers size={19}/>แผนที่ถนน {mapLayer==="standard"?"✓":""}</button><button className="menu-action" onClick={() => {setMapLayer("satellite");setMobileMenuOpen(false);}}><Satellite size={19}/>ภาพถ่ายดาวเทียม {mapLayer==="satellite"?"✓":""}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);locate();}}><LocateFixed size={19}/>ตำแหน่งของฉัน</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".share-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Radio size={19}/>{sharing?"สถานะการแชร์ตำแหน่ง":"แชร์ตำแหน่งรถ"}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".hazard-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><AlertTriangle size={19}/>รายงานเหตุอันตราย</button><div className="menu-note"><Box size={17}/><span>มุมมอง 3D แบบอาคารและภูมิประเทศต้องเชื่อมต่อระบบแผนที่ 3D เพิ่มเติม</span></div></section></div>}
     <section className="content">
-      <div className="panel">
+      <div className="panel share-panel">
         <div className="panel-title"><div><h2>แชร์ตำแหน่งรถ</h2><p>ไม่มีบัญชีผู้ใช้ · เปิดแชร์เมื่อคุณยินยอมเท่านั้น</p></div><ShieldCheck size={24}/></div>
         {!sharing ? <button className="primary-btn" onClick={startSharing}><Radio size={18}/>ยินยอมและเริ่มแชร์ตำแหน่ง</button> : <button className="stop-btn" onClick={stopSharing}><Square size={16} fill="currentColor"/>หยุดแชร์ตำแหน่งทันที</button>}
         <p className="privacy-note">เมื่อเปิดแชร์ ระบบจะส่งตำแหน่ง GPS และความเร็ว (ถ้าอุปกรณ์ให้ข้อมูล) ไปยัง Cloudflare เพื่อแสดงรถที่เข้าร่วม ข้อมูลจะหมดอายุอัตโนมัติภายใน 2 นาทีหลังไม่มีการอัปเดต การกดหยุดแชร์จะพยายามลบข้อมูลทันที</p>
@@ -248,7 +265,7 @@ export default function App() {
         {nearbyAlert && <div className="proximity-alert" role="status"><AlertTriangle size={19}/><span>{nearbyAlert}<small>เฉพาะอุปกรณ์ที่แชร์ตำแหน่งกับระบบนี้</small></span></div>}
         {hazardAlert && <div className="proximity-alert hazard-alert" role="alert"><Siren size={19}/><span>{hazardAlert}<small>รายงานผู้ใช้อาจคลาดเคลื่อนหรือหมดอายุแล้ว</small></span></div>}
       </div>
-      <div className="panel"><div className="panel-title"><div><h2>รายงานเหตุอันตราย</h2><p>แจ้งเหตุ ณ ตำแหน่ง GPS ปัจจุบัน</p></div><Siren size={24}/></div><label className="hazard-label">ประเภทเหตุ<select value={hazardType} onChange={e=>setHazardType(e.target.value as HazardType)}><option value="accident">อุบัติเหตุ</option><option value="broken_vehicle">รถเสีย</option><option value="obstacle">สิ่งกีดขวาง</option><option value="road_hazard">อันตรายบนถนน</option></select></label><label className="hazard-label">รายละเอียด (ไม่บังคับ)<input value={hazardNote} maxLength={120} onChange={e=>setHazardNote(e.target.value)} placeholder="เช่น รถจอดเสียในช่องทางซ้าย"/></label><button className="report-btn" onClick={reportHazard} disabled={hazardBusy}><AlertTriangle size={17}/>{hazardBusy?"กำลังส่งรายงาน...":"รายงานเหตุ ณ ตำแหน่งฉัน"}</button><p className="privacy-note">รายงานหมดอายุใน 30 นาที ยังไม่มีระบบยืนยันความถูกต้อง</p></div>
+      <div className="panel hazard-panel"><div className="panel-title"><div><h2>รายงานเหตุอันตราย</h2><p>แจ้งเหตุ ณ ตำแหน่ง GPS ปัจจุบัน</p></div><Siren size={24}/></div><label className="hazard-label">ประเภทเหตุ<select value={hazardType} onChange={e=>setHazardType(e.target.value as HazardType)}><option value="accident">อุบัติเหตุ</option><option value="broken_vehicle">รถเสีย</option><option value="obstacle">สิ่งกีดขวาง</option><option value="road_hazard">อันตรายบนถนน</option></select></label><label className="hazard-label">รายละเอียด (ไม่บังคับ)<input value={hazardNote} maxLength={120} onChange={e=>setHazardNote(e.target.value)} placeholder="เช่น รถจอดเสียในช่องทางซ้าย"/></label><button className="report-btn" onClick={reportHazard} disabled={hazardBusy}><AlertTriangle size={17}/>{hazardBusy?"กำลังส่งรายงาน...":"รายงานเหตุ ณ ตำแหน่งฉัน"}</button><p className="privacy-note">รายงานหมดอายุใน 30 นาที ยังไม่มีระบบยืนยันความถูกต้อง</p></div>
       <div className="panel status-panel"><div className="panel-title"><div><h2>รถที่รายงานตำแหน่ง</h2><p>แสดงเฉพาะรถที่แชร์ตำแหน่งสดและข้อมูลยังไม่หมดอายุ</p></div><span className="count">{sharing ? nearby.length : "—"}</span></div>
         {!sharing ? <p className="empty">เปิดโหมดแชร์ตำแหน่งเพื่อทดลองดูรถที่เข้าร่วมระบบ</p> : nearby.length ? nearby.slice(0,8).map(v => <div className={"vehicle-row " + (v.distance <= 500 ? "vehicle-near" : "")} key={v.id}><span className="vehicle-icon">🚘</span><div className="vehicle-info"><strong>{v.distance <= 500 ? "รถใกล้เคียง · ระวัง" : "รถที่เข้าร่วม"}</strong><small>อัปเดต {Math.max(0,Math.round((Date.now()-v.updatedAt)/1000))} วินาทีที่แล้ว</small></div><strong>{v.distance < 1000 ? Math.round(v.distance)+" ม." : (v.distance/1000).toFixed(1)+" กม."}</strong></div>) : <p className="empty">ยังไม่มีรถคันอื่นรายงานตำแหน่งในขณะนี้</p>}
       </div>
