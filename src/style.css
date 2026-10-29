@@ -151,3 +151,12 @@
  .road-tools-sheet{max-height:88dvh!important;overflow-y:auto!important;padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
  .place-suggestions{max-height:38dvh}
 }
+
+/* Welcome and accessibility improvements */
+.welcome-banner{margin:14px 18px 0;padding:18px 20px;border:1px solid #2b4b40;border-radius:18px;background:linear-gradient(120deg,#17372f 0%,#17232c 62%,#1b2c38 100%);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 22px;align-items:center}
+.welcome-copy{min-width:0}.welcome-eyebrow{font-size:11px;font-weight:800;letter-spacing:.5px;color:#77e7b0}.welcome-copy h2{font-size:clamp(18px,2vw,25px);line-height:1.35;margin:6px 0;color:#f3faf7}.welcome-copy p{font-size:13px;line-height:1.7;color:#c2d2da;margin:0;max-width:760px}
+.welcome-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.welcome-actions button,.welcome-actions a{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:11px;padding:12px 14px;font-weight:800;font-size:13px;text-decoration:none;cursor:pointer}
+.welcome-actions button{border:1px solid #1ca873;background:#159565;color:white}.welcome-actions a{border:1px solid #4b626d;background:#111c24;color:#e9f5f0}
+.welcome-note{grid-column:1/-1;display:flex;align-items:center;gap:6px;margin:0;color:#a8c6b9;font-size:11px}
+button,a,input,select{touch-action:manipulation}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #7de9b4;outline-offset:3px}
+@media(max-width:700px){.welcome-banner{margin:10px 10px 0;padding:14px;grid-template-columns:1fr;gap:12px;border-radius:14px}.welcome-copy h2{font-size:19px}.welcome-copy p{font-size:12px}.welcome-actions{display:grid;grid-template-columns:1fr 1fr}.welcome-actions button,.welcome-actions a{min-height:44px;padding:10px}.welcome-note{font-size:10px}.topbar{position:sticky;top:0;background:#101820;z-index:3000;padding-top:calc(10px + env(safe-area-inset-top))!important}}
