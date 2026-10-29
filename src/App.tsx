@@ -88,11 +88,17 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   return 6371000 * 2 * Math.asin(Math.sqrt(h));
 }
 type PlaceSuggestion = { lat: number; lng: number; label: string; name: string };
-async function searchPlaces(query: string): Promise<PlaceSuggestion[]> {
+async function searchPlaces(query: string, near?: RoutePoint | null): Promise<PlaceSuggestion[]> {
   const url = new URL("https://photon.komoot.io/api/");
   url.searchParams.set("q", query);
-  url.searchParams.set("limit", "6");
+  url.searchParams.set("limit", "8");
   url.searchParams.set("lang", "th");
+  // Bias generic queries such as "สนาม" toward the user's current area.
+  if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) {
+    url.searchParams.set("lat", String(near.lat));
+    url.searchParams.set("lon", String(near.lng));
+    url.searchParams.set("zoom", "10");
+  }
   const response = await fetch(url);
   if (!response.ok) throw new Error("ค้นหาสถานที่ไม่สำเร็จ");
   const data = await response.json() as { features?: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; district?: string; city?: string; county?: string; state?: string; country?: string } }> };
@@ -142,11 +148,11 @@ export default function App() {
     if (query.length < 2 || query.toLowerCase() === "ตำแหน่งของฉัน" || (activeSearchField === "origin" && originPoint) || (activeSearchField === "destination" && destinationPoint)) { setSuggestions([]); return; }
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      try { const places = await searchPlaces(query); if (!cancelled) setSuggestions(places); }
+      try { const places = await searchPlaces(query, position ? { lat: position.lat, lng: position.lng } : null); if (!cancelled) setSuggestions(places); }
       catch { if (!cancelled) setSuggestions([]); }
     }, 350);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [origin, destination, activeSearchField, originPoint, destinationPoint]);
+  }, [origin, destination, activeSearchField, originPoint, destinationPoint, position?.lat, position?.lng]);
 
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [routeSummary, setRouteSummary] = useState("");
@@ -313,8 +319,8 @@ export default function App() {
             <section className="route-panel">
         <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
         <form className="route-form" onSubmit={searchRoute}>
-          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="พิมพ์บางส่วน เช่น สนาม, โรงพยาบาล หรือชื่อถนน" />{activeSearchField === "origin" && originSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
-          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อหรือบางส่วนของสถานที่" />{activeSearchField === "destination" && destinationSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
+          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม หรือโรงพยาบาล" />{activeSearchField === "origin" && originSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
+          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน ระบบจะแนะนำสถานที่ใกล้เคียง" />{activeSearchField === "destination" && destinationSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
           <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
         </form>
         {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
