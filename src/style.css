@@ -109,3 +109,12 @@
  .road-tools-sheet .route-panel{margin:0 0 10px}
  .road-tools-sheet .content{padding:0}
 }
+
+/* The map is the main workspace; navigation and status panels live in the popup. */
+.navigation-layout{display:block;min-height:0;margin-top:14px}
+.navigation-layout .map-wrap{margin:0 18px;height:calc(100vh - 145px);min-height:520px;max-height:900px;border-radius:16px;overflow:hidden}
+@media(max-width:700px){
+ .navigation-layout{display:block;margin-top:8px}
+ .navigation-layout .map-wrap{margin:0 8px;height:72dvh;min-height:440px;max-height:760px;border-radius:15px}
+ .maplibre-map .maplibregl-ctrl-bottom-right{bottom:72px}
+}
