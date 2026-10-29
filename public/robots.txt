@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://road-alert-dg4.pages.dev/sitemap.xml
