@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren } from "lucide-react";
 
@@ -19,6 +19,11 @@ const hazardIcon = (type: HazardType) => L.divIcon({ className: "hazard-marker",
 const hazardLabels: Record<HazardType, string> = { accident: "อุบัติเหตุ", broken_vehicle: "รถเสีย", obstacle: "สิ่งกีดขวาง", road_hazard: "อันตรายบนถนน" };
 function stepText(step: RouteStep) { const m=step.maneuver, mod=m.modifier||""; let action="ขับต่อไป"; if(m.type==="depart") action="เริ่มเดินทาง"; else if(m.type==="arrive") action="ถึงจุดหมายแล้ว"; else if(m.type==="turn"||m.type==="end of road") action=mod.includes("left")?"เลี้ยวซ้าย":mod.includes("right")?"เลี้ยวขวา":mod.includes("uturn")?"กลับรถ":"ขับตรงไป"; else if(m.type.includes("roundabout")) action="เข้าวงเวียน"; else if(m.type==="merge") action="รวมเข้าช่องทาง"; return action+(step.name?" เข้าสู่ "+step.name:""); }
 function speakThai(text: string) { if (!("speechSynthesis" in window)) return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang="th-TH"; u.rate=0.92; const v=window.speechSynthesis.getVoices().find(v=>v.lang.toLowerCase().startsWith("th")); if(v)u.voice=v; window.speechSynthesis.speak(u); }
+
+function MapClickSelector({ enabled, onPick }: { enabled: boolean; onPick: (point: RoutePoint) => void }) {
+  useMapEvents({ click(event) { if (enabled) onPick({ lat: event.latlng.lat, lng: event.latlng.lng }); } });
+  return null;
+}
 
 function Recenter({ position }: { position: Position | null }) {
   const map = useMap();
@@ -59,6 +64,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [pickTarget, setPickTarget] = useState<"origin" | "destination" | null>(null);
+  const [originPoint, setOriginPoint] = useState<RoutePoint | null>(null);
+  const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeSummary, setRouteSummary] = useState("");
   const [routeBusy, setRouteBusy] = useState(false);
@@ -156,8 +164,8 @@ export default function App() {
     if (!origin.trim() || !destination.trim()) { setRouteError("กรุณากรอกจุดเริ่มต้นและปลายทาง"); return; }
     setRouteBusy(true); setRouteError(""); setRouteSummary(""); setRouteSteps([]);setCurrentStep(0);announcedStep.current=-1;
     try {
-      const start = origin.trim().toLowerCase() === "ตำแหน่งของฉัน" && position ? { lat: position.lat, lng: position.lng } : await geocode(origin.trim());
-      const end = await geocode(destination.trim());
+      const start = originPoint || (origin.trim().toLowerCase() === "ตำแหน่งของฉัน" && position ? { lat: position.lat, lng: position.lng } : await geocode(origin.trim()));
+      const end = destinationPoint || await geocode(destination.trim());
       const url = "https://router.project-osrm.org/route/v1/driving/" + start.lng + "," + start.lat + ";" + end.lng + "," + end.lat + "?overview=full&steps=true&geometries=geojson";
       const response = await fetch(url);
       if (!response.ok) throw new Error("บริการคำนวณเส้นทางไม่พร้อมใช้งาน");
@@ -184,20 +192,24 @@ export default function App() {
     <section className="route-panel">
       <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
       <form className="route-form" onSubmit={searchRoute}>
-        <label>จาก<input value={origin} onChange={e => setOrigin(e.target.value)} placeholder="เช่น ตำแหน่งของฉัน หรือ เชียงใหม่" /></label>
-        <label>ไปยัง<input value={destination} onChange={e => setDestination(e.target.value)} placeholder="เช่น แม่ฮ่องสอน" /></label>
+        <label>จาก<input value={origin} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือ เชียงใหม่" /></label>
+        <label>ไปยัง<input value={destination} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="เช่น แม่ฮ่องสอน" /></label>
         <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
       </form>
       {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
       {routeError && <p className="route-error"><AlertTriangle size={15}/>{routeError}</p>}
+      <div className="map-pick-controls"><span>หรือเลือกจุดจากแผนที่</span><button type="button" className={pickTarget==="origin"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="origin"?null:"origin")}><MapPin size={15}/>เลือกจุดเริ่มต้น</button><button type="button" className={pickTarget==="destination"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="destination"?null:"destination")}><MapPin size={15}/>เลือกปลายทาง</button>{pickTarget&&<small>แตะตำแหน่งบนแผนที่เพื่อกำหนด{pickTarget==="origin"?"จุดเริ่มต้น":"ปลายทาง"}</small>}</div>
       <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
       <MapContainer center={[19.3, 97.97]} zoom={9} zoomControl={false} className="map">
         <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <MapClickSelector enabled={pickTarget!==null} onPick={point=>{if(pickTarget==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else if(pickTarget==="destination"){setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} />
         <Recenter position={position} />
         <FitRoute points={routePoints} />
         {position && <Marker position={[position.lat, position.lng]} icon={meIcon} />}
+        {originPoint && <Marker position={[originPoint.lat,originPoint.lng]} icon={pointIcon} />}
+        {destinationPoint && <Marker position={[destinationPoint.lat,destinationPoint.lng]} icon={pointIcon} />}
         {sharing && nearby.map(v => <Marker key={v.id} position={[v.lat, v.lng]} icon={carIcon} />)}
         {routePoints.length > 1 && <Polyline positions={routePoints.map(p => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#27b67a", weight: 6, opacity: 0.9 }} />}
         {routeStart && <Marker position={[routeStart.lat, routeStart.lng]} icon={pointIcon} />}
