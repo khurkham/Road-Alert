@@ -1,0 +1,14 @@
+name = "road-alert-api"
+main = "worker/index.ts"
+compatibility_date = "2026-10-29"
+
+[[durable_objects.bindings]]
+name = "VEHICLES"
+class_name = "VehicleRegistry"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VehicleRegistry"]
+
+[vars]
+APP_ENV = "trial"
