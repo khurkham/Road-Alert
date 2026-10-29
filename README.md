@@ -13,7 +13,7 @@
 Workflow `.github/workflows/deploy-cloudflare.yml` จะทำงานเมื่อมีการ push ไปที่ `setup/road-alert-trial` และสามารถสั่งด้วยมือจาก GitHub Actions ได้ โดยจะ build frontend, ตรวจ config, deploy Worker API และ deploy Cloudflare Pages ตามลำดับ
 
 ### Secrets ที่จำเป็น
-ใน GitHub repository Environment ชื่อ `Cloudflare` ต้องมี:
+ใน GitHub repository Environment ชื่อ `CLOUDFLARE_API_TOKEN` (ตรงกับ Environment ที่ตั้งไว้ใน GitHub ปัจจุบัน) ต้องมี:
 - `CLOUDFLARE_API_TOKEN`: Token ที่มีสิทธิ์ Workers Scripts Edit, Cloudflare Pages Edit และ Account Settings Read สำหรับบัญชีที่ใช้งาน
 - `CLOUDFLARE_ACCOUNT_ID`: Account ID ของบัญชี Cloudflare
 
