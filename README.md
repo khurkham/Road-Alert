@@ -1,39 +1,53 @@
 # Road Alert
 
-ระบบทดลองนำทางและแจ้งเตือนรถ เปิดให้ใช้งานโดยไม่ต้องสมัครสมาชิก
+ระบบทดลองแผนที่และแชร์ตำแหน่งรถโดยไม่ต้องสมัครสมาชิก
 
-## รุ่นทดลองใน branch นี้
-- เว็บ React + TypeScript + Vite
-- แผนที่ Leaflet / OpenStreetMap
-- อ่านตำแหน่งจาก GPS ของอุปกรณ์เมื่อผู้ใช้อนุญาต
-- แชร์ตำแหน่งรถเฉพาะเมื่อกดเริ่มแชร์ และมีปุ่มหยุดแชร์
-- Worker API + Durable Objects เก็บตำแหน่งรถชั่วคราว หมดอายุหลัง 120 วินาที
-- ไม่มีบัญชีสมาชิกและไม่มี D1 ในรุ่นแรก
+## สถานะรุ่นทดลอง
+- Frontend: React + TypeScript + Vite, แผนที่ Leaflet/OpenStreetMap
+- อ่าน GPS เมื่อผู้ใช้อนุญาต และเริ่มแชร์เฉพาะเมื่อกดยินยอม
+- ปุ่มหยุดแชร์พยายามลบตำแหน่งทันที
+- Worker API ใช้ Durable Object VehicleRegistry เก็บตำแหน่งชั่วคราวและลบข้อมูลที่เก่ากว่า 120 วินาที
+- API routes: GET /api/health, GET /api/vehicles, PUT /api/vehicles/:id, DELETE /api/vehicles/:id
 
-## พัฒนาในเครื่อง
-ต้องใช้ Node.js 20 ขึ้นไป
+## Deploy API Worker ด้วย Cloudflare Workers Builds
+Worker ที่สร้างด้วยหน้า Hello World ใน Dashboard จะยังเป็น Hello World จนกว่าจะ deploy โค้ดใน repo นี้
 
+1. เปิด Worker road-alert-api ใน Cloudflare Dashboard แล้วไปที่ Settings > Builds (ชื่อเมนูอาจต่างกันเล็กน้อย)
+2. เชื่อม GitHub repository khurkham/Road-Alert
+3. ตั้ง production branch เป็น setup/road-alert-trial (อย่าใช้ main ในขณะนี้ เพราะ branch main ยังไม่มีแอป)
+4. ตั้ง Build command เป็น npm run worker:check และ Deploy command เป็น npm run worker:deploy. ถ้าหน้าตั้งค่าต้องการคำสั่งติดตั้งแยก ให้ใช้ npm install.
+5. บันทึกและสั่ง deploy จาก branch ดังกล่าว รอให้ build/deploy สำเร็จ
+
+Wrangler จะอ่าน wrangler.toml, deploy worker/index.ts, สร้าง binding VEHICLES และ migrate class VehicleRegistry ตาม config. ไม่ต้องสร้าง Durable Object binding ด้วยมือใน Dashboard สำหรับวิธีนี้
+
+## Deploy frontend
+Cloudflare Pages project road-alert:
+- Production branch: setup/road-alert-trial
+- Framework preset: React (Vite)
+- Build command: npm run build
+- Build output directory: dist
+- Root directory: /
+
+Pages Function functions/api/[[path]].ts forwards /api/* requests to https://road-alert-api.bejaitai.workers.dev.
+
+## Local development
+Requires Node.js 20+:
 ```bash
 npm install
 npm run dev
 ```
-
-Worker ในอีก terminal:
-
+In another terminal:
 ```bash
 npm run worker:dev
 ```
 
-## การ Deploy
-1. สร้าง Cloudflare Worker ตาม `wrangler.toml` และ deploy API
-2. Deploy frontend ไป Cloudflare Pages โดยตั้ง build command `npm run build` และ output directory `dist`
-3. ตั้งค่า Pages Functions หรือ reverse proxy ให้ `/api/*` ส่งไปยัง Worker API
-4. ทดสอบ `/api/health`, การแชร์ตำแหน่ง, การหยุดแชร์ และการหมดอายุข้อมูลก่อนเปิดให้สาธารณะ
+## Smoke tests after deployment
+- Open https://road-alert-api.bejaitai.workers.dev/api/health; expected JSON with ok: true.
+- Open https://road-alert-dg4.pages.dev/api/health; expected the same health JSON via Pages proxy.
+- Open https://road-alert-dg4.pages.dev/api/vehicles; expected {"vehicles":[]} when no one is sharing.
+- Test sharing with two devices, then stop sharing and confirm the marker disappears; stale records expire within about two minutes.
 
-## ข้อจำกัดที่ทราบ
-- ยังไม่มี routing engine / turn-by-turn directions, voice navigation หรือ collision prediction
-- รถจะปรากฏได้เมื่ออุปกรณ์นั้นเข้าร่วมและแชร์ตำแหน่งเท่านั้น
-- เว็บไซต์ต้องทำงานผ่าน HTTPS เพื่อใช้ GPS
-- Browser บนมือถืออาจจำกัดการติดตามตำแหน่งเมื่อหน้าจอดับหรือแท็บอยู่เบื้องหลัง
-- OpenStreetMap standard tile server มีนโยบายการใช้งานและข้อจำกัด ควรเลือกผู้ให้บริการไทล์ที่เหมาะสมก่อนเปิดให้ผู้ใช้จำนวนมาก
-- รุ่นนี้เป็นต้นแบบทดสอบ ไม่ใช่อุปกรณ์ความปลอดภัยและไม่รับประกันการตรวจจับรถทุกคัน
+## Privacy and safety
+This is a trial, not a collision avoidance or safety-certified navigation system. Only participating devices that consent to share can appear; GPS does not detect cars that are not sharing, vehicles hidden around bends, or vehicles behind obstacles. Mobile browsers may suspend GPS in background tabs. Do not rely on this prototype as a substitute for safe driving.
+
+Before public use, add stronger abuse protection/rate limiting and privacy review. Standard OpenStreetMap tile service has usage policies and capacity limits; choose a suitable tile provider before scaling.
