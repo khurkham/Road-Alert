@@ -174,7 +174,7 @@ export default function App() {
       const result = await response.json() as { code: string; routes?: RouteResult[] };
       if (result.code !== "Ok" || !result.routes?.length) throw new Error("ไม่พบเส้นทางขับรถระหว่างสองจุดนี้");
       const route = result.routes[0];
-      setRouteOptions(result.routes);
+      setOriginPoint(start);\n      setDestinationPoint(end);\n      setRouteOptions(result.routes);
       setSelectedRouteIndex(0);
       const points = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       setRoutePoints(points);
@@ -225,8 +225,8 @@ export default function App() {
         <Recenter position={position} />
         <FitRoute points={routePoints} />
         {position && <Marker position={[position.lat, position.lng]} icon={meIcon} />}
-        {originPoint && <Marker position={[originPoint.lat,originPoint.lng]} icon={pointIcon} />}
-        {destinationPoint && <Marker position={[destinationPoint.lat,destinationPoint.lng]} icon={pointIcon} />}
+        {originPoint && <Marker position={[originPoint.lat,originPoint.lng]} icon={pointIcon} draggable eventHandlers={{ dragend: event => { const p=event.target.getLatLng(); const point={lat:p.lat,lng:p.lng}; setOriginPoint(point); setOrigin("จุดเริ่มต้นที่ย้ายหมุด"); setRoutePoints([]); setRouteOptions([]); setRouteSummary(""); setNotice("ย้ายหมุดเริ่มต้นแล้ว กดค้นหาเส้นทางอีกครั้ง"); } }} />}
+        {destinationPoint && <Marker position={[destinationPoint.lat,destinationPoint.lng]} icon={pointIcon} draggable eventHandlers={{ dragend: event => { const p=event.target.getLatLng(); const point={lat:p.lat,lng:p.lng}; setDestinationPoint(point); setDestination("ปลายทางที่ย้ายหมุด"); setRoutePoints([]); setRouteOptions([]); setRouteSummary(""); setNotice("ย้ายหมุดปลายทางแล้ว กดค้นหาเส้นทางอีกครั้ง"); } }} />}
         {sharing && nearby.map(v => <Marker key={v.id} position={[v.lat, v.lng]} icon={carIcon} />)}
         {routePoints.length > 1 && <Polyline positions={routePoints.map(p => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#27b67a", weight: 6, opacity: 0.9 }} />}
         {routeStart && <Marker position={[routeStart.lat, routeStart.lng]} icon={pointIcon} />}
