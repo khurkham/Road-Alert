@@ -47,7 +47,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
   },[]);
   useEffect(()=>{
     if(!host.current||mapRef.current)return;
-    const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:55,bearing:0,antialias:true, maxPitch:70, attributionControl:true});
+    const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:55,bearing:0,antialias:true, maxPitch:70});
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
     map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);});
