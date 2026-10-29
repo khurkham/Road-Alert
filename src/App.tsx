@@ -25,11 +25,18 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
   propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
     if(!map.isStyleLoaded())return;
-    if(layer==="satellite"&&!map.getSource("road-alert-satellite")){
-      map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,attribution:"Imagery © Esri"});
-      const firstSymbol=map.getStyle().layers?.find(l=>l.type==="symbol")?.id;
-      map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":1}},firstSymbol);
+    if(layer==="satellite"){
+      if(!map.getSource("road-alert-satellite")){
+        map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,attribution:"Imagery © Esri"});
+        const layers=map.getStyle().layers||[];
+        const firstSymbol=layers.find(l=>l.type==="symbol")?.id;
+        map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":1}},firstSymbol);
+      }
       map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",0.12)}catch{}}});
+    }else{
+      if(map.getLayer("road-alert-satellite-layer"))map.removeLayer("road-alert-satellite-layer");
+      if(map.getSource("road-alert-satellite"))map.removeSource("road-alert-satellite");
+      map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",1)}catch{}}});
     }
     if(!map.getSource("road-alert-route")){
       map.addSource("road-alert-route",{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]} }});
