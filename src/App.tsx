@@ -20,7 +20,7 @@ type RoadMapProps = {
   onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
 };
 function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
-  const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
+  const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<maplibregl.Marker[]>([]);\n  const [styleReady,setStyleReady]=useState(false);
   const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
   propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
@@ -71,7 +71,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
     if(destinationPoint)add(destinationPoint,"📍","map-marker-pin",true,"destination");
     if(sharing)vehicles.filter(v=>Date.now()-v.updatedAt<120000).forEach(v=>add(v,"🚘","map-marker-car"));
     hazards.filter(h=>Date.now()-h.createdAt<1800000).forEach(h=>add(h,h.type==="accident"?"🚨":h.type==="broken_vehicle"?"🚗":h.type==="obstacle"?"🪨":"⚠️","map-marker-hazard"));
-  },[position,originPoint,destinationPoint,sharing,vehicles,hazards,mapLayer]);
+  },[position,originPoint,destinationPoint,sharing,vehicles,hazards,mapLayer,styleReady]);
   return <div ref={host} className="map maplibre-map" aria-label="แผนที่นำทาง 3D"/>;
 }
 
