@@ -71,3 +71,10 @@
  .maplibre-map .maplibregl-ctrl button{width:34px;height:34px}
  .maplibre-map .maplibregl-ctrl-attrib{max-width:170px;font-size:9px}
 }
+
+.drive-hud{position:absolute;z-index:12;left:16px;top:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #ffffff33;border-radius:14px;background:#101b22eF;color:#f5fafc;box-shadow:0 4px 18px #0004;pointer-events:none;backdrop-filter:blur(8px)}
+.drive-hud div{display:flex;align-items:baseline;gap:5px}
+.drive-hud strong{font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.drive-hud small{font-size:11px;color:#a8c4d0}
+.drive-hud span{font-size:11px;color:#d2e0e7;border-left:1px solid #ffffff33;padding-left:10px}
+@media(max-width:700px){.drive-hud{left:8px;top:58px;padding:8px 10px;gap:8px}.drive-hud strong{font-size:25px}.drive-hud span{font-size:10px}}
