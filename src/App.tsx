@@ -1,4 +1,5 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren } from "lucide-react";
@@ -31,7 +32,7 @@ function FitRoute({ points }: { points: RoutePoint[] }) {
   }, [points, map]);
   return null;
 }
-function distanceMeters(a: Position, b: Vehicle) {
+function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const rad = (n: number) => n * Math.PI / 180;
   const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
@@ -130,7 +131,7 @@ export default function App() {
 
   const nearby = position ? vehicles.map(v => ({ ...v, distance: distanceMeters(position, v) })).filter(v => Date.now() - v.updatedAt < 120000).sort((a,b) => a.distance - b.distance) : [];
   const closeVehicles = sharing ? nearby.filter(v => v.distance <= 500) : [];
-  const nearbyHazards=position?hazards.map(h=>({...h,distance:distanceMeters(position,h as Vehicle)})).filter(h=>Date.now()-h.createdAt<1800000).sort((a,b)=>a.distance-b.distance):[]; const closeHazards=nearbyHazards.filter(h=>h.distance<=500);
+  const nearbyHazards=position?hazards.map(h=>({...h,distance:distanceMeters(position,h)})).filter(h=>Date.now()-h.createdAt<1800000).sort((a,b)=>a.distance-b.distance):[]; const closeHazards=nearbyHazards.filter(h=>h.distance<=500);
 
   useEffect(() => {
     if (!sharing || !position) { setNearbyAlert(""); alertedIds.current.clear(); return; }
@@ -174,7 +175,7 @@ export default function App() {
     } finally { setRouteBusy(false); }
   };
 
-  useEffect(()=>{if(!position||!routeSteps.length)return;let best=currentStep,dist=Infinity;for(let i=currentStep;i<routeSteps.length;i++){const loc=routeSteps[i].maneuver.location;const d=distanceMeters(position,{lat:loc[1],lng:loc[0]} as Vehicle);if(d<dist){dist=d;best=i;}}if(best>currentStep&&dist<100){setCurrentStep(best);if(voiceOn&&announcedStep.current!==best){announcedStep.current=best;speakThai(stepText(routeSteps[best]));}}},[position,routeSteps,currentStep,voiceOn]);
+  useEffect(()=>{if(!position||!routeSteps.length)return;let best=currentStep,dist=Infinity;for(let i=currentStep;i<routeSteps.length;i++){const loc=routeSteps[i].maneuver.location;const d=distanceMeters(position,{lat:loc[1],lng:loc[0]});if(d<dist){dist=d;best=i;}}if(best>currentStep&&dist<100){setCurrentStep(best);if(voiceOn&&announcedStep.current!==best){announcedStep.current=best;speakThai(stepText(routeSteps[best]));}}},[position,routeSteps,currentStep,voiceOn]);
   const routeStart = routePoints[0];
   const routeEnd = routePoints[routePoints.length - 1];
 
