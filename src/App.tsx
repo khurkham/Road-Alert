@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import maplibregl, { type Map as MapLibreMap, type Marker as MapLibreMarker } from "maplibre-gl";
+import maplibregl, { type Map as MapLibreMap, type GeoJSONSource } from "maplibre-gl";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren, Menu, X, Layers, Satellite, Box } from "lucide-react";
 
 type Position = { lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
@@ -55,7 +55,7 @@ function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sha
     return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
   },[setupStyle]);
   useEffect(()=>{const map=mapRef.current;if(!map)return;const apply=()=>setupStyle(map,mapLayer);if(map.isStyleLoaded())apply();else map.once("style.load",apply);},[mapLayer,setupStyle]);
-  useEffect(()=>{const map=mapRef.current;if(!map)return;const source=map.getSource("road-alert-route") as maplibregl.GeoJSONSource|undefined;if(source)source.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routePoints.map(p=>[p.lng,p.lat])}});if(routePoints.length>1)map.fitBounds(new maplibregl.LngLatBounds([routePoints[0].lng,routePoints[0].lat],[routePoints[routePoints.length-1].lng,routePoints[routePoints.length-1].lat]),{padding:55,maxZoom:16});},[routePoints]);
+  useEffect(()=>{const map=mapRef.current;if(!map)return;const source=map.getSource("road-alert-route") as GeoJSONSource|undefined;if(source)source.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routePoints.map(p=>[p.lng,p.lat])}});if(routePoints.length>1)map.fitBounds(new maplibregl.LngLatBounds([routePoints[0].lng,routePoints[0].lat],[routePoints[routePoints.length-1].lng,routePoints[routePoints.length-1].lat]),{padding:55,maxZoom:16});},[routePoints]);
   useEffect(()=>{const map=mapRef.current;if(!map||!position)return;map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),15),duration:500});},[position?.lat,position?.lng]);
   useEffect(()=>{
     const map=mapRef.current;if(!map||!map.isStyleLoaded())return;
