@@ -3,6 +3,9 @@ interface Env {
 }
 type Vehicle = { id: string; lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
 const MAX_AGE_MS = 120_000;
+const HAZARD_TTL_MS = 1_800_000;
+const HAZARD_TYPES = new Set(["accident","broken_vehicle","obstacle","road_hazard"]);
+type Hazard = {id:string;lat:number;lng:number;type:"accident"|"broken_vehicle"|"obstacle"|"road_hazard";note:string;createdAt:number};
 const ALLOWED_ORIGINS = new Set(["https://road-alert-dg4.pages.dev", "https://road-alert-api.bejaitai.workers.dev"]);
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
@@ -19,7 +22,7 @@ function addCors(request: Request, response: Response): Response {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
   }
-  headers.set("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type");
   headers.set("Access-Control-Max-Age", "86400");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
@@ -45,6 +48,14 @@ export default {
     if (origin && !ALLOWED_ORIGINS.has(origin)) return addCors(request, json({ error: "origin_not_allowed" }, 403));
     if (url.pathname === "/api/health" && request.method === "GET") {
       return addCors(request, json({ ok: true, service: "road-alert-api", timestamp: Date.now() }));
+    }
+    if (url.pathname === "/api/hazards" && request.method === "GET") { const stub=env.VEHICLES.get(env.VEHICLES.idFromName("live-vehicles")); return addCors(request,await stub.fetch("https://vehicles.internal/hazards")); }
+    if (url.pathname === "/api/hazards" && request.method === "POST") {
+      let body:unknown; try{body=await request.json();}catch{return addCors(request,json({error:"invalid_json"},400));}
+      if(!body||typeof body!=="object")return addCors(request,json({error:"invalid_hazard"},400)); const b=body as Record<string,unknown>;
+      if(!Number.isFinite(b.lat)||!Number.isFinite(b.lng)||Math.abs(b.lat as number)>90||Math.abs(b.lng as number)>180||typeof b.type!=="string"||!HAZARD_TYPES.has(b.type)||(b.note!=null&&typeof b.note!=="string"))return addCors(request,json({error:"invalid_hazard"},400));
+      const hazard:Hazard={id:crypto.randomUUID(),lat:b.lat as number,lng:b.lng as number,type:b.type as Hazard["type"],note:typeof b.note==="string"?b.note.trim().slice(0,120):"",createdAt:Date.now()}; const stub=env.VEHICLES.get(env.VEHICLES.idFromName("live-vehicles"));
+      return addCors(request,await stub.fetch("https://vehicles.internal/hazards",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(hazard)}));
     }
     if (url.pathname === "/api/vehicles" && request.method === "GET") {
       const stub = env.VEHICLES.get(env.VEHICLES.idFromName("live-vehicles"));
@@ -80,6 +91,8 @@ export class VehicleRegistry {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const key = url.pathname.split("/").pop() || "";
+    if(url.pathname==="/hazards"&&request.method==="GET"){const stored=await this.state.storage.list<Hazard>({prefix:"h:"});const now=Date.now();const hazards:Hazard[]=[];for(const [k,v] of stored){if(now-v.createdAt>HAZARD_TTL_MS)await this.state.storage.delete(k);else hazards.push(v);}return json({hazards:hazards.sort((a,b)=>b.createdAt-a.createdAt).slice(0,300)});}
+    if(url.pathname==="/hazards"&&request.method==="POST"){const h=await request.json() as Hazard;await this.state.storage.put("h:"+h.id,h);await this.scheduleNextAlarm();return json({ok:true,hazard:h,expiresInSeconds:HAZARD_TTL_MS/1000},201);}
     if (url.pathname === "/list" && request.method === "GET") {
       const stored = await this.state.storage.list<Vehicle>({ prefix: "v:" });
       const now = Date.now();
@@ -97,20 +110,11 @@ export class VehicleRegistry {
     if (url.pathname.startsWith("/vehicle/") && request.method === "PUT") {
       const value = await request.json() as Vehicle;
       await this.state.storage.put("v:" + key, value);
-      await this.state.storage.setAlarm(Date.now() + MAX_AGE_MS);
+      await this.scheduleNextAlarm();
       return json({ ok: true, expiresInSeconds: MAX_AGE_MS / 1000 });
     }
     return json({ error: "not_found" }, 404);
   }
-  async alarm(): Promise<void> {
-    const stored = await this.state.storage.list<Vehicle>({ prefix: "v:" });
-    const now = Date.now();
-    let nextExpiry = Infinity;
-    for (const [key, value] of stored) {
-      const expiry = value.updatedAt + MAX_AGE_MS;
-      if (expiry <= now) await this.state.storage.delete(key);
-      else nextExpiry = Math.min(nextExpiry, expiry);
-    }
-    if (nextExpiry !== Infinity) await this.state.storage.setAlarm(nextExpiry);
-  }
+  private async scheduleNextAlarm(){const vs=await this.state.storage.list<Vehicle>({prefix:"v:"});const hs=await this.state.storage.list<Hazard>({prefix:"h:"});let next=Infinity;for(const v of vs.values())next=Math.min(next,v.updatedAt+MAX_AGE_MS);for(const h of hs.values())next=Math.min(next,h.createdAt+HAZARD_TTL_MS);if(next!==Infinity)await this.state.storage.setAlarm(Math.max(Date.now()+1000,next));else await this.state.storage.deleteAlarm();}
+  async alarm():Promise<void>{const now=Date.now();const vs=await this.state.storage.list<Vehicle>({prefix:"v:"});const hs=await this.state.storage.list<Hazard>({prefix:"h:"});for(const [k,v] of vs)if(now-v.updatedAt>MAX_AGE_MS)await this.state.storage.delete(k);for(const [k,h] of hs)if(now-h.createdAt>HAZARD_TTL_MS)await this.state.storage.delete(k);await this.scheduleNextAlarm();}
 }
