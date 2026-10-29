@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
-import L from "leaflet";
+import maplibregl, { type Map as MapLibreMap, type Marker as MapLibreMarker } from "maplibre-gl";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIcon, ShieldCheck, Square, Volume2, Siren, Menu, X, Layers, Satellite, Box } from "lucide-react";
 
 type Position = { lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
@@ -12,31 +11,67 @@ type Hazard = { id: string; lat: number; lng: number; type: HazardType; note: st
 type RouteStep = { distance: number; duration: number; name: string; maneuver: { type: string; modifier?: string; location: [number, number] } };
 type RouteResult = { distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs?: Array<{ steps: RouteStep[] }> };
 
-const carIcon = L.divIcon({ className: "car-marker", html: "🚘", iconSize: [34, 34], iconAnchor: [17, 17] });
-const meIcon = L.divIcon({ className: "me-marker", html: '<span class="me-dot"></span>', iconSize: [22, 22], iconAnchor: [11, 11] });
-const pointIcon = L.divIcon({ className: "route-marker", html: "📍", iconSize: [28, 32], iconAnchor: [14, 28] });
-const hazardIcon = (type: HazardType) => L.divIcon({ className: "hazard-marker", html: type === "accident" ? "🚨" : type === "broken_vehicle" ? "🚗" : type === "obstacle" ? "🪨" : "⚠️", iconSize: [34, 34], iconAnchor: [17, 17] });
+const STREET_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+type RoadMapProps = {
+  mapLayer: "standard" | "satellite"; position: Position | null; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
+  routePoints: RoutePoint[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
+  onPick: (point: RoutePoint, target: "origin" | "destination") => void;
+  onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
+};
+function RoadMap({mapLayer,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
+  const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
+  const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
+  propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
+  const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
+    if(!map.isStyleLoaded())return;
+    if(layer==="satellite"&&!map.getSource("road-alert-satellite")){
+      map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,attribution:"Imagery © Esri"});
+      const firstSymbol=map.getStyle().layers?.find(l=>l.type==="symbol")?.id;
+      map.addLayer({id:"road-alert-satellite-layer",type:"raster",source:"road-alert-satellite",paint:{"raster-opacity":1}},firstSymbol);
+      map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",0.12)}catch{}}});
+    }
+    if(!map.getSource("road-alert-route")){
+      map.addSource("road-alert-route",{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]} }});
+      map.addLayer({id:"road-alert-route-line",type:"line",source:"road-alert-route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#20d889","line-width":6,"line-opacity":0.95}});
+    }
+    if(!map.getLayer("road-alert-3d-buildings")&&map.getSource("openmaptiles")){
+      try{map.addLayer({id:"road-alert-3d-buildings",source:"openmaptiles","source-layer":"building",type:"fill-extrusion",minzoom:13,filter:["all",["!=",["get","hide_3d"],true]],paint:{"fill-extrusion-color":["coalesce",["get","render_colour"],["get","colour"],"#aeb8c1"],"fill-extrusion-height":["interpolate",["linear"],["zoom"],13,0,15,["coalesce",["get","render_height"],["get","height"],8]],"fill-extrusion-base":["coalesce",["get","render_min_height"],["get","min_height"],0],"fill-extrusion-opacity":0.82}})}catch{/* style may not expose building source */}}
+  },[]);
+  useEffect(()=>{
+    if(!host.current||mapRef.current)return;
+    const map=new maplibregl.Map({container:host.current,style:STREET_STYLE,center:[97.97,19.3],zoom:9,pitch:55,bearing:0,antialias:true, maxPitch:70, attributionControl:true});
+    mapRef.current=map;
+    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
+    map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);});
+    map.on("click",e=>{const p=propsRef.current;if(p.pickTarget)p.onPick({lat:e.lngLat.lat,lng:e.lngLat.lng},p.pickTarget);});
+    return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
+  },[setupStyle]);
+  useEffect(()=>{const map=mapRef.current;if(!map)return;const apply=()=>setupStyle(map,mapLayer);if(map.isStyleLoaded())apply();else map.once("style.load",apply);},[mapLayer,setupStyle]);
+  useEffect(()=>{const map=mapRef.current;if(!map)return;const source=map.getSource("road-alert-route") as maplibregl.GeoJSONSource|undefined;if(source)source.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routePoints.map(p=>[p.lng,p.lat])}});if(routePoints.length>1)map.fitBounds(new maplibregl.LngLatBounds([routePoints[0].lng,routePoints[0].lat],[routePoints[routePoints.length-1].lng,routePoints[routePoints.length-1].lat]),{padding:55,maxZoom:16});},[routePoints]);
+  useEffect(()=>{const map=mapRef.current;if(!map||!position)return;map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),15),duration:500});},[position?.lat,position?.lng]);
+  useEffect(()=>{
+    const map=mapRef.current;if(!map||!map.isStyleLoaded())return;
+    markersRef.current.forEach(m=>m.remove());markersRef.current=[];
+    const add=(point:RoutePoint,html:string,cls:string,draggable=false,target?:"origin"|"destination")=>{
+      const el=document.createElement("div");el.className=cls;el.innerHTML=html;
+      const marker=new maplibregl.Marker({element:el,anchor:"bottom",draggable}).setLngLat([point.lng,point.lat]).addTo(map);
+      if(draggable&&target)marker.on("dragend",()=>{const p=marker.getLngLat();propsRef.current.onMovePin({lat:p.lat,lng:p.lng},target);});
+      markersRef.current.push(marker);
+    };
+    if(position)add(position,'<span class="me-dot"></span>',"map-marker-me");
+    if(originPoint)add(originPoint,"📍","map-marker-pin",true,"origin");
+    if(destinationPoint)add(destinationPoint,"📍","map-marker-pin",true,"destination");
+    if(sharing)vehicles.filter(v=>Date.now()-v.updatedAt<120000).forEach(v=>add(v,"🚘","map-marker-car"));
+    hazards.filter(h=>Date.now()-h.createdAt<1800000).forEach(h=>add(h,h.type==="accident"?"🚨":h.type==="broken_vehicle"?"🚗":h.type==="obstacle"?"🪨":"⚠️","map-marker-hazard"));
+  },[position,originPoint,destinationPoint,sharing,vehicles,hazards,mapLayer]);
+  return <div ref={host} className="map maplibre-map" aria-label="แผนที่นำทาง 3D"/>;
+}
+
 const hazardLabels: Record<HazardType, string> = { accident: "อุบัติเหตุ", broken_vehicle: "รถเสีย", obstacle: "สิ่งกีดขวาง", road_hazard: "อันตรายบนถนน" };
 function stepText(step: RouteStep) { const m=step.maneuver, mod=m.modifier||""; let action="ขับต่อไป"; if(m.type==="depart") action="เริ่มเดินทาง"; else if(m.type==="arrive") action="ถึงจุดหมายแล้ว"; else if(m.type==="turn"||m.type==="end of road") action=mod.includes("left")?"เลี้ยวซ้าย":mod.includes("right")?"เลี้ยวขวา":mod.includes("uturn")?"กลับรถ":"ขับตรงไป"; else if(m.type.includes("roundabout")) action="เข้าวงเวียน"; else if(m.type==="merge") action="รวมเข้าช่องทาง"; return action+(step.name?" เข้าสู่ "+step.name:""); }
 function speakThai(text: string) { if (!("speechSynthesis" in window)) return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang="th-TH"; u.rate=0.92; const v=window.speechSynthesis.getVoices().find(v=>v.lang.toLowerCase().startsWith("th")); if(v)u.voice=v; window.speechSynthesis.speak(u); }
 
-function MapClickSelector({ enabled, onPick }: { enabled: boolean; onPick: (point: RoutePoint) => void }) {
-  useMapEvents({ click(event) { if (enabled) onPick({ lat: event.latlng.lat, lng: event.latlng.lng }); } });
-  return null;
-}
-
-function Recenter({ position }: { position: Position | null }) {
-  const map = useMap();
-  useEffect(() => { if (position) map.setView([position.lat, position.lng], Math.max(map.getZoom(), 15)); }, [position, map]);
-  return null;
-}
-function FitRoute({ points }: { points: RoutePoint[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length > 1) map.fitBounds(L.latLngBounds(points.map(p => [p.lat, p.lng] as [number, number])), { padding: [35, 35] });
-  }, [points, map]);
-  return null;
-}
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const rad = (n: number) => n * Math.PI / 180;
   const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
@@ -237,25 +272,12 @@ export default function App() {
       <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
-      <MapContainer center={[19.3, 97.97]} zoom={9} zoomControl={false} className="map">
-        {mapLayer === "standard" ? <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /> : <TileLayer attribution='Imagery &copy; Esri' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />}
-        <MapClickSelector enabled={pickTarget!==null} onPick={point=>{if(pickTarget==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else if(pickTarget==="destination"){setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} />
-        <Recenter position={position} />
-        <FitRoute points={routePoints} />
-        {position && <Marker position={[position.lat, position.lng]} icon={meIcon} />}
-        {originPoint && <Marker position={[originPoint.lat,originPoint.lng]} icon={pointIcon} draggable eventHandlers={{ dragend: event => { const p=event.target.getLatLng(); const point={lat:p.lat,lng:p.lng}; setOriginPoint(point); setOrigin("จุดเริ่มต้นที่ย้ายหมุด"); setRoutePoints([]); setRouteOptions([]); setRouteSummary(""); setNotice("ย้ายหมุดเริ่มต้นแล้ว กดค้นหาเส้นทางอีกครั้ง"); } }} />}
-        {destinationPoint && <Marker position={[destinationPoint.lat,destinationPoint.lng]} icon={pointIcon} draggable eventHandlers={{ dragend: event => { const p=event.target.getLatLng(); const point={lat:p.lat,lng:p.lng}; setDestinationPoint(point); setDestination("ปลายทางที่ย้ายหมุด"); setRoutePoints([]); setRouteOptions([]); setRouteSummary(""); setNotice("ย้ายหมุดปลายทางแล้ว กดค้นหาเส้นทางอีกครั้ง"); } }} />}
-        {sharing && nearby.map(v => <Marker key={v.id} position={[v.lat, v.lng]} icon={carIcon} />)}
-        {routePoints.length > 1 && <Polyline positions={routePoints.map(p => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#27b67a", weight: 6, opacity: 0.9 }} />}
-        {routeStart && <Marker position={[routeStart.lat, routeStart.lng]} icon={pointIcon} />}
-        {routeEnd && <Marker position={[routeEnd.lat, routeEnd.lng]} icon={pointIcon} />}
-        {hazards.map(h=><Marker key={h.id} position={[h.lat,h.lng]} icon={hazardIcon(h.type)}/>)}
-      </MapContainer>
-      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม":"แผนที่ถนน"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>
+      <RoadMap mapLayer={mapLayer} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
+      <div className="map-tools"><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
-    {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet" role="dialog" aria-modal="true" aria-label="เมนู Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เมนู Road Alert</strong><small>เลือกเครื่องมือที่ต้องการ</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".route-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Navigation size={19}/>ค้นหาเส้นทาง</button><button className="menu-action" onClick={() => {setMapLayer("standard");setMobileMenuOpen(false);}}><Layers size={19}/>แผนที่ถนน {mapLayer==="standard"?"✓":""}</button><button className="menu-action" onClick={() => {setMapLayer("satellite");setMobileMenuOpen(false);}}><Satellite size={19}/>ภาพถ่ายดาวเทียม {mapLayer==="satellite"?"✓":""}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);locate();}}><LocateFixed size={19}/>ตำแหน่งของฉัน</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".share-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Radio size={19}/>{sharing?"สถานะการแชร์ตำแหน่ง":"แชร์ตำแหน่งรถ"}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".hazard-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><AlertTriangle size={19}/>รายงานเหตุอันตราย</button><div className="menu-note"><Box size={17}/><span>มุมมอง 3D แบบอาคารและภูมิประเทศต้องเชื่อมต่อระบบแผนที่ 3D เพิ่มเติม</span></div></section></div>}
+    {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet" role="dialog" aria-modal="true" aria-label="เมนู Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เมนู Road Alert</strong><small>เลือกเครื่องมือที่ต้องการ</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".route-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Navigation size={19}/>ค้นหาเส้นทาง</button><button className="menu-action" onClick={() => {setMapLayer("standard");setMobileMenuOpen(false);}}><Layers size={19}/>แผนที่ถนน {mapLayer==="standard"?"✓":""}</button><button className="menu-action" onClick={() => {setMapLayer("satellite");setMobileMenuOpen(false);}}><Satellite size={19}/>ภาพถ่ายดาวเทียม {mapLayer==="satellite"?"✓":""}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);locate();}}><LocateFixed size={19}/>ตำแหน่งของฉัน</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".share-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Radio size={19}/>{sharing?"สถานะการแชร์ตำแหน่ง":"แชร์ตำแหน่งรถ"}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".hazard-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><AlertTriangle size={19}/>รายงานเหตุอันตราย</button><div className="menu-note"><Box size={17}/><span>แผนที่ใช้มุมเอียง 3D และแสดงอาคารเมื่อผู้ให้บริการมีข้อมูลรองรับ</span></div></section></div>}
     <section className="content">
       <div className="panel share-panel">
         <div className="panel-title"><div><h2>แชร์ตำแหน่งรถ</h2><p>ไม่มีบัญชีผู้ใช้ · เปิดแชร์เมื่อคุณยินยอมเท่านั้น</p></div><ShieldCheck size={24}/></div>
