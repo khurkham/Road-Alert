@@ -24,7 +24,7 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
   const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
   const [styleReady,setStyleReady]=useState(false);
   const propsRef=useRef({position,originPoint,destinationPoint,routePoints,stops,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
-  propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
+  propsRef.current={position,originPoint,destinationPoint,routePoints,stops,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
     if(!map.isStyleLoaded())return;
     if(layer==="satellite"){
