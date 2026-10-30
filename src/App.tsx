@@ -179,7 +179,8 @@ export default function App() {
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearchField, setActiveSearchField] = useState<"origin" | "destination" | null>(null);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);\n   const [suggestionError, setSuggestionError] = useState("");
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+   const [suggestionError, setSuggestionError] = useState("");
   const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeOptions, setRouteOptions] = useState<RouteResult[]>([]);
