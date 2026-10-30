@@ -78,3 +78,23 @@
 .drive-hud small{font-size:11px;color:#a8c4d0}
 .drive-hud span{font-size:11px;color:#d2e0e7;border-left:1px solid #ffffff33;padding-left:10px}
 @media(max-width:700px){.drive-hud{left:8px;top:58px;padding:8px 10px;gap:8px}.drive-hud strong{font-size:25px}.drive-hud span{font-size:10px}}
+
+
+/* Live place suggestions */
+.location-search-field{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#b6c5cf;min-width:0}
+.location-search-wrap{position:relative;min-width:0}
+.location-search-wrap>input{width:100%;min-width:0;border:1px solid #40515e;background:#101820;color:#f3f7fa;border-radius:11px;padding:13px 42px 13px 13px;font:inherit;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s}
+.location-search-wrap>input:focus{border-color:#39c78b;box-shadow:0 0 0 3px #39c78b20}
+.location-search-wrap>input::placeholder{color:#7e909c}
+.location-search-loading{position:absolute;right:14px;top:14px;width:17px;height:17px;border:2px solid #426052;border-top-color:#39c78b;border-radius:50%;animation:place-spin .7s linear infinite}
+@keyframes place-spin{to{transform:rotate(360deg)}}
+.location-suggestions{position:absolute;z-index:1000;top:calc(100% + 6px);left:0;right:0;max-height:300px;overflow:auto;background:#1a2832;border:1px solid #40515e;border-radius:13px;box-shadow:0 14px 36px #0008;padding:5px}
+.location-suggestion{display:flex;align-items:flex-start;gap:10px;width:100%;padding:11px 9px;text-align:left;background:transparent;border:0;border-bottom:1px solid #30414c;color:#edf4f7;cursor:pointer;border-radius:8px}
+.location-suggestion:hover,.location-suggestion:focus{background:#263c39;outline:none}
+.suggestion-pin{display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:#203e34;color:#78e5b1}
+.suggestion-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.suggestion-copy strong{font-size:13px;font-weight:750;color:#f4faf7}
+.suggestion-copy small{font-size:11px;line-height:1.45;color:#a9bac4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.location-search-message{padding:14px 10px;text-align:center;font-size:12px;line-height:1.5;color:#bdcbd3}
+.location-search-credit{padding:7px 9px 5px;font-size:10px;color:#82949f;text-align:right}
+@media(max-width:700px){.location-suggestions{max-height: min(42vh,300px)}.location-search-wrap>input{font-size:16px}}
