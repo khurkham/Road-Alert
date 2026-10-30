@@ -108,25 +108,46 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
 }
 type PlaceSuggestion = { lat: number; lng: number; label: string; name: string };
 async function searchPlaces(query: string, near?: RoutePoint | null): Promise<PlaceSuggestion[]> {
-  const url = new URL("https://photon.komoot.io/api/");
-  url.searchParams.set("q", query);
-  url.searchParams.set("limit", "8");
-  url.searchParams.set("lang", "th");
-  // Bias generic queries such as "สนาม" toward the user's current area.
-  if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) {
-    url.searchParams.set("lat", String(near.lat));
-    url.searchParams.set("lon", String(near.lng));
-    url.searchParams.set("zoom", "10");
+  // Expand broad Thai categories so short searches such as "สนาม" return useful choices.
+  const normalized = query.trim();
+  const expansions: Record<string, string[]> = {
+    "สนาม": ["สนามกีฬา", "สนามฟุตบอล", "สนามเด็กเล่น", "สนามบิน", "สนามเทนนิส"],
+    "ตลาด": ["ตลาดสด", "ตลาดนัด", "ตลาด"],
+    "วัด": ["วัด", "สำนักสงฆ์"],
+    "โรงเรียน": ["โรงเรียน", "สถานศึกษา"],
+    "โรงพยาบาล": ["โรงพยาบาล", "คลินิก"]
+  };
+  const terms = Array.from(new Set([normalized, ...(expansions[normalized] || [])]));
+  const fetchTerm = async (term: string) => {
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", term);
+    url.searchParams.set("limit", "12");
+    url.searchParams.set("lang", "th");
+    if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) {
+      url.searchParams.set("lat", String(near.lat));
+      url.searchParams.set("lon", String(near.lng));
+      url.searchParams.set("zoom", "12");
+    }
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("บริการค้นหาสถานที่ตอบกลับ " + response.status);
+    const data = await response.json() as { features?: Array<{ geometry?: { coordinates?: [number, number] }; properties?: { name?: string; street?: string; district?: string; city?: string; county?: string; state?: string; country?: string } }> };
+    return (data.features || []).flatMap(feature => {
+      const coordinates = feature.geometry?.coordinates;
+      const p = feature.properties;
+      if (!coordinates || !p || !Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1])) return [];
+      const name = p.name || p.street || "สถานที่";
+      const context = [p.street && p.street !== name ? p.street : "", p.district, p.city || p.county, p.state, p.country].filter(Boolean);
+      return [{ lng: coordinates[0], lat: coordinates[1], name, label: [name, ...Array.from(new Set(context))].join(", ") }];
+    });
+  };
+  const results = await Promise.allSettled(terms.map(fetchTerm));
+  const places = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
+  if (!places.length && results.every(result => result.status === "rejected")) {
+    throw new Error("เชื่อมต่อบริการค้นหาสถานที่ไม่ได้ กรุณาลองใหม่อีกครั้ง");
   }
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("ค้นหาสถานที่ไม่สำเร็จ");
-  const data = await response.json() as { features?: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; district?: string; city?: string; county?: string; state?: string; country?: string } }> };
-  return (data.features || []).map(feature => {
-    const p = feature.properties;
-    const name = p.name || p.street || "สถานที่";
-    const context = [p.street && p.street !== name ? p.street : "", p.district, p.city || p.county, p.state, p.country].filter(Boolean);
-    return { lng: feature.geometry.coordinates[0], lat: feature.geometry.coordinates[1], name, label: [name, ...Array.from(new Set(context))].join(", ") };
-  }).filter((place, index, list) => list.findIndex(other => other.label === place.label) === index);
+  const unique = places.filter((place, index, list) => list.findIndex(other => other.label === place.label) === index);
+  if (near) unique.sort((a, b) => distanceMeters(near, a) - distanceMeters(near, b));
+  return unique.slice(0, 12);
 }
 async function geocode(query: string): Promise<RoutePoint> {
   // Explicit user-submitted searches only; no autocomplete.
@@ -158,14 +179,14 @@ export default function App() {
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearchField, setActiveSearchField] = useState<"origin" | "destination" | null>(null);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);\n   const [suggestionError, setSuggestionError] = useState("");
   const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeOptions, setRouteOptions] = useState<RouteResult[]>([]);
   useEffect(() => {
     const query = activeSearchField === "origin" ? origin.trim() : activeSearchField === "destination" ? destination.trim() : "";
     const setSuggestions = activeSearchField === "origin" ? setOriginSuggestions : setDestinationSuggestions;
-    if (query.length < 2 || query.toLowerCase() === "ตำแหน่งของฉัน" || (activeSearchField === "origin" && originPoint) || (activeSearchField === "destination" && destinationPoint)) { setSuggestions([]); setSuggestionsLoading(false); return; }
+    if (query.length < 2 || query.toLowerCase() === "ตำแหน่งของฉัน" || (activeSearchField === "origin" && originPoint) || (activeSearchField === "destination" && destinationPoint)) { setSuggestions([]); setSuggestionsLoading(false); setSuggestionError(""); return; }
     let cancelled = false;
     setSuggestions([]);
     setSuggestionsLoading(true);
@@ -365,8 +386,8 @@ export default function App() {
             <section className="route-panel">
         <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาสถานที่และเส้นทาง</h2><p>พิมพ์เพียงบางคำ เช่น “สนาม” แล้วเลือกสถานที่จากรายการแนะนำ</p></div></div>
         <form className="route-form" onSubmit={searchRoute}>
-          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือพิมพ์ว่า สนาม" />{activeSearchField === "origin" && origin.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : originSuggestions.length ? originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">ไม่พบรายการที่ตรงกัน ลองพิมพ์ชื่อสถานที่หรือคำค้นอื่น</div>}</div>}</div></label>
-          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม โรงเรียน ตลาด" />{activeSearchField === "destination" && destination.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : destinationSuggestions.length ? destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">ไม่พบรายการที่ตรงกัน ลองพิมพ์ชื่อสถานที่หรือคำค้นอื่น</div>}</div>}</div></label>
+          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือพิมพ์ว่า สนาม" />{activeSearchField === "origin" && origin.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : originSuggestions.length ? originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">{suggestionError || "ยังไม่พบสถานที่ ลองเพิ่มคำ เช่น สนามกีฬา สนามฟุตบอล หรือระบุอำเภอ"}</div>}</div>}</div></label>
+          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม โรงเรียน ตลาด" />{activeSearchField === "destination" && destination.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : destinationSuggestions.length ? destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">{suggestionError || "ยังไม่พบสถานที่ ลองเพิ่มคำ เช่น สนามกีฬา สนามฟุตบอล หรือระบุอำเภอ"}</div>}</div>}</div></label>
           <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
         </form>
         {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
