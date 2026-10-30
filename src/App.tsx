@@ -42,7 +42,7 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
     }
     if(!map.getSource("road-alert-route")){
       map.addSource("road-alert-route",{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]} }});
-      map.addLayer({id:"road-alert-route-line",type:"line",source:"road-alert-route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#20d889","line-width":6,"line-opacity":0.95}});
+      map.addLayer({id:"road-alert-route-line",type:"line",source:"road-alert-route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#1677ff","line-width":7,"line-opacity":1,"line-blur":0.15}});
     }
     if(!map.getLayer("road-alert-3d-buildings")&&map.getSource("openmaptiles")){
       try{map.addLayer({id:"road-alert-3d-buildings",source:"openmaptiles","source-layer":"building",type:"fill-extrusion",minzoom:13,filter:["all",["!=",["get","hide_3d"],true]],paint:{"fill-extrusion-color":["coalesce",["get","render_colour"],["get","colour"],"#aeb8c1"],"fill-extrusion-height":["interpolate",["linear"],["zoom"],13,0,15,["coalesce",["get","render_height"],["get","height"],8]],"fill-extrusion-base":["coalesce",["get","render_min_height"],["get","min_height"],0],"fill-extrusion-opacity":0.82}})}catch{/* style may not expose building source */}}
@@ -58,7 +58,21 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
   },[setupStyle]);
   useEffect(()=>{const map=mapRef.current;if(!map)return;const apply=()=>setupStyle(map,mapLayer);if(map.isStyleLoaded())apply();else map.once("style.load",apply);},[mapLayer,setupStyle]);
   useEffect(()=>{const map=mapRef.current;if(!map||!styleReady)return;const source=map.getSource("road-alert-route") as GeoJSONSource|undefined;if(!source)return;source.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routePoints.map(p=>[p.lng,p.lat])}});if(routePoints.length>1)map.fitBounds(new maplibregl.LngLatBounds([routePoints[0].lng,routePoints[0].lat],[routePoints[routePoints.length-1].lng,routePoints[routePoints.length-1].lat]),{padding:80,maxZoom:16,duration:700});},[routePoints,styleReady]);
-  useEffect(()=>{const map=mapRef.current;if(!map||!position)return;map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),driveMode?17:15),pitch:driveMode?62:48,bearing:driveMode&&position.heading!==null?position.heading:0,duration:500});},[position?.lat,position?.lng,position?.heading,driveMode]);
+  useEffect(()=>{
+    const map=mapRef.current;if(!map||!position)return;
+    if(routePoints.length>1){
+      let nearest=Infinity;
+      for(const point of routePoints){
+        const lat1=position.lat*Math.PI/180,lat2=point.lat*Math.PI/180;
+        const dLat=(point.lat-position.lat)*Math.PI/180,dLng=(point.lng-position.lng)*Math.PI/180;
+        const a=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+        const d=6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+        if(d<nearest)nearest=d;
+      }
+      if(nearest>1500)return;
+    }
+    map.easeTo({center:[position.lng,position.lat],zoom:Math.max(map.getZoom(),driveMode?16:14),pitch:driveMode?55:40,bearing:driveMode&&position.heading!==null?position.heading:0,duration:500});
+  },[position?.lat,position?.lng,position?.heading,driveMode,routePoints]);
   useEffect(()=>{
     const map=mapRef.current;if(!map||!map.isStyleLoaded())return;
     markersRef.current.forEach(m=>m.remove());markersRef.current=[];
