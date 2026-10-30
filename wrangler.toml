@@ -11,4 +11,4 @@ tag = "v1"
 new_sqlite_classes = ["VehicleRegistry"]
 
 [vars]
-APP_ENV = "trial"
+APP_ENV = "production"
