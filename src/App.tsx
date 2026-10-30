@@ -86,18 +86,66 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 6371000 * 2 * Math.asin(Math.sqrt(h));
 }
-async function geocode(query: string): Promise<RoutePoint> {
-  // Explicit user-submitted searches only; no autocomplete.
-  const url = new URL("https://nominatim.openstreetmap.org/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", "1");
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("ค้นหาสถานที่ไม่สำเร็จ");
-  const data = await response.json() as Array<{ lat: string; lon: string; display_name: string }>;
-  if (!data.length) throw new Error('ไม่พบสถานที่: "' + query + '"');
-  return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+
+type PlaceSuggestion = { place_id: number; lat: string; lon: string; name?: string; display_name: string; type?: string };
+function LocationSearch({label,value,placeholder,onChange,onSelect}:{
+  label:string; value:string; placeholder:string;
+  onChange:(value:string)=>void; onSelect:(place:PlaceSuggestion)=>void;
+}) {
+  const [items,setItems]=useState<PlaceSuggestion[]>([]);
+  const [loading,setLoading]=useState(false);
+  const [open,setOpen]=useState(false);
+  const [message,setMessage]=useState("");
+  const requestId=useRef(0);
+  useEffect(()=>{
+    const query=value.trim();
+    if(query.length<2){setItems([]);setOpen(false);setMessage("");setLoading(false);return;}
+    const id=++requestId.current;
+    const controller=new AbortController();
+    const timer=window.setTimeout(async()=>{
+      setLoading(true);setMessage("");
+      try{
+        const url=new URL("https://nominatim.openstreetmap.org/search");
+        url.searchParams.set("q",query);
+        url.searchParams.set("format","jsonv2");
+        url.searchParams.set("addressdetails","1");
+        url.searchParams.set("limit","7");
+        url.searchParams.set("countrycodes","th");
+        url.searchParams.set("accept-language","th");
+        const response=await fetch(url,{signal:controller.signal,headers:{"Accept":"application/json"}});
+        if(!response.ok)throw new Error("บริการค้นหาสถานที่ไม่พร้อมใช้งาน");
+        const data=await response.json() as PlaceSuggestion[];
+        if(id!==requestId.current)return;
+        setItems(data);setOpen(true);
+        setMessage(data.length?"":"ไม่พบสถานที่ ลองพิมพ์ชื่ออำเภอ จังหวัด หรือคำค้นที่ยาวขึ้น");
+      }catch(error){
+        if(controller.signal.aborted)return;
+        if(id===requestId.current){setItems([]);setOpen(true);setMessage(error instanceof Error?error.message:"ค้นหาไม่สำเร็จ");}
+      }finally{if(id===requestId.current)setLoading(false);}
+    },900);
+    return()=>{window.clearTimeout(timer);controller.abort();};
+  },[value]);
+  return <label className="location-search-field">{label}
+    <div className="location-search-wrap">
+      <input value={value} placeholder={placeholder} autoComplete="off"
+        aria-autocomplete="list" aria-expanded={open}
+        onFocus={()=>{if(value.trim().length>=2&&(items.length||message))setOpen(true);}}
+        onChange={e=>{onChange(e.target.value);setOpen(true);}} />
+      {loading&&<span className="location-search-loading" aria-label="กำลังค้นหา"/>}
+      {open&&value.trim().length>=2&&<div className="location-suggestions" role="listbox">
+        {items.map(place=><button type="button" role="option" key={place.place_id}
+          className="location-suggestion" onMouseDown={e=>e.preventDefault()}
+          onClick={()=>{onSelect(place);setOpen(false);}}>
+          <span className="suggestion-pin"><MapPin size={17}/></span>
+          <span className="suggestion-copy"><strong>{place.name||place.display_name.split(",")[0]}</strong><small>{place.display_name}</small></span>
+        </button>)}
+        {!loading&&message&&<div className="location-search-message">{message}</div>}
+        <div className="location-search-credit">ข้อมูลสถานที่ © OpenStreetMap contributors</div>
+      </div>}
+    </div>
+  </label>;
 }
+
 export default function App() {
   const [position, setPosition] = useState<Position | null>(null);
   const [gpsMessage, setGpsMessage] = useState("กดปุ่มตำแหน่งเพื่อเริ่มใช้ GPS");
@@ -270,8 +318,8 @@ export default function App() {
     <section className="route-panel">
       <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
       <form className="route-form" onSubmit={searchRoute}>
-        <label>จาก<input value={origin} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือ เชียงใหม่" /></label>
-        <label>ไปยัง<input value={destination} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="เช่น แม่ฮ่องสอน" /></label>
+        <LocationSearch label="จาก" value={origin} placeholder="ค้นหาจุดเริ่มต้น หรือเลือกตำแหน่งของฉัน" onChange={v=>{setOrigin(v);setOriginPoint(null);}} onSelect={p=>{setOrigin(p.name||p.display_name.split(",")[0]);setOriginPoint({lat:Number(p.lat),lng:Number(p.lon)});setRouteError("");}} />
+        <LocationSearch label="ไปยัง" value={destination} placeholder="พิมพ์ชื่อสถานที่ เช่น สนามบิน" onChange={v=>{setDestination(v);setDestinationPoint(null);}} onSelect={p=>{setDestination(p.name||p.display_name.split(",")[0]);setDestinationPoint({lat:Number(p.lat),lng:Number(p.lon)});setRouteError("");}} />
         <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
       </form>
       {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
