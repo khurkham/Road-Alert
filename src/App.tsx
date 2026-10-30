@@ -333,6 +333,21 @@ export default function App() {
       setRouteSteps((route.legs||[]).flatMap(l=>l.steps).filter(s=>s.maneuver?.location));
       setRouteSummary("ระยะทางประมาณ " + (route.distance / 1000).toFixed(1) + " กม. · ใช้เวลาประมาณ " + Math.max(1, Math.round(route.duration / 60)) + " นาที");
       if(voiceOn&&route.legs?.[0]?.steps?.[0])speakThai("เริ่มนำทาง "+stepText(route.legs[0].steps[0]));
+      if("geolocation" in navigator && window.isSecureContext){
+        setNavMode(true);setDriveMode(true);
+        navigator.geolocation.getCurrentPosition(p=>{
+          setPosition({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,speed:p.coords.speed,heading:p.coords.heading,updatedAt:Date.now()});
+          setGpsMessage("กำลังนำทาง · GPS ±"+Math.round(p.coords.accuracy)+" เมตร");
+          if(navWatchId.current!==null)navigator.geolocation.clearWatch(navWatchId.current);
+          navWatchId.current=navigator.geolocation.watchPosition(q=>setPosition({lat:q.coords.latitude,lng:q.coords.longitude,accuracy:q.coords.accuracy,speed:q.coords.speed,heading:q.coords.heading,updatedAt:Date.now()}),()=>setGpsMessage("สัญญาณ GPS ขาดหาย กำลังรอสัญญาณ"),{enableHighAccuracy:true,maximumAge:3000,timeout:30000});
+        },e=>{
+          setNavMode(false);setDriveMode(false);
+          const reason=e.code===1?"ถูกปฏิเสธสิทธิ์ตำแหน่ง":e.code===2?"อุปกรณ์ไม่สามารถระบุตำแหน่งได้":"หมดเวลารอ GPS";
+          setRouteError("คำนวณเส้นทางแล้ว แต่"+reason+" กรุณาเปิด Location และอนุญาตตำแหน่งให้เว็บไซต์ จากนั้นกดเริ่มนำทางอีกครั้ง");
+        },{enableHighAccuracy:false,maximumAge:10000,timeout:30000});
+      }else{
+        setRouteError("คำนวณเส้นทางแล้ว แต่ต้องเปิดเว็บไซต์ผ่าน HTTPS และอนุญาต GPS เพื่อเริ่มนำทาง");
+      }
     } catch (error) {
       setRouteError(error instanceof Error ? error.message : "ค้นหาเส้นทางไม่สำเร็จ");
       setRoutePoints([]);
@@ -371,13 +386,13 @@ export default function App() {
           </div>)}
           {stops.length<3&&<button type="button" className="add-stop-btn" onClick={()=>setStops(old=>[...old,{id:crypto.randomUUID(),name:"",point:null}])}>＋ เพิ่มจุดพักแวะ</button>}
         </div>
-        <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
+        <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "เริ่มนำทาง"}</button>
       </form>
       {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
       {routeError && <p className="route-error"><AlertTriangle size={15}/>{routeError}</p>}
       {routeOptions.length > 0 && <div className="route-options"><h3>เลือกเส้นทาง</h3>{routeOptions.map((route,index)=><button type="button" key={index} className={selectedRouteIndex===index?"route-option selected":"route-option"} onClick={()=>chooseRoute(route,index)}><span className="route-option-icon"><Navigation size={18}/></span><span className="route-option-main"><strong>{Math.max(1,Math.round(route.duration/60))} นาที</strong><small>{(route.distance/1000).toFixed(1)} กม. · {index===0?"เส้นทางแนะนำ":"เส้นทางทางเลือก "+(index+1)}</small></span>{selectedRouteIndex===index&&<span className="route-option-check">เลือกแล้ว</span>}</button>)}</div>}
       <div className="map-pick-controls"><span>หรือเลือกจุดจากแผนที่</span><button type="button" className={pickTarget==="origin"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="origin"?null:"origin")}><MapPin size={15}/>เลือกจุดเริ่มต้น</button><button type="button" className={pickTarget==="destination"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="destination"?null:"destination")}><MapPin size={15}/>เลือกปลายทาง</button>{pickTarget&&<small>แตะตำแหน่งบนแผนที่เพื่อกำหนด{pickTarget==="origin"?"จุดเริ่มต้น":"ปลายทาง"}</small>}</div>
-      <div className="navigation-controls">{routePoints.length>1&&!navMode&&<button className="start-nav-btn" type="button" onClick={startNavigation}><Navigation size={18}/>เริ่มนำทาง</button>}{navMode&&<button className="stop-nav-btn" type="button" onClick={stopNavigation}><X size={18}/>ออกจากโหมดนำทาง</button>}<button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
+      <div className="navigation-controls">{navMode&&<button className="stop-nav-btn" type="button" onClick={stopNavigation}><X size={18}/>ออกจากโหมดนำทาง</button>}<button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
       <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} stops={stops} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
