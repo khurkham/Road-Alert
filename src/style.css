@@ -160,3 +160,71 @@
 .welcome-note{grid-column:1/-1;display:flex;align-items:center;gap:6px;margin:0;color:#a8c6b9;font-size:11px}
 button,a,input,select{touch-action:manipulation}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #7de9b4;outline-offset:3px}
 @media(max-width:700px){.welcome-banner{margin:10px 10px 0;padding:14px;grid-template-columns:1fr;gap:12px;border-radius:14px}.welcome-copy h2{font-size:19px}.welcome-copy p{font-size:12px}.welcome-actions{display:grid;grid-template-columns:1fr 1fr}.welcome-actions button,.welcome-actions a{min-height:44px;padding:10px}.welcome-note{font-size:10px}.topbar{position:sticky;top:0;background:#101820;z-index:3000;padding-top:calc(10px + env(safe-area-inset-top))!important}}
+
+
+/* Inclusive, easy-to-use interface: larger type, clear actions, calm visual hierarchy */
+:root{font-size:16px}
+body{font-size:16px;line-height:1.55;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.app-shell{max-width:1440px}
+.topbar{min-height:76px;padding:14px 22px;gap:14px}
+.topbar h1{font-size:clamp(21px,2vw,27px);letter-spacing:0}
+.topbar p{font-size:14px;line-height:1.45}
+.route-panel,.panel{border-radius:18px}
+.route-heading h2,.panel-title h2{font-size:clamp(17px,1.3vw,20px);line-height:1.35}
+.route-heading p,.panel-title p{font-size:14px;line-height:1.55}
+.route-form label,.hazard-label{font-size:14px;line-height:1.5}
+.route-form input,.hazard-label input,.hazard-label select{min-height:52px;padding:13px 14px;font-size:16px;border-radius:12px}
+.route-btn,.primary-btn,.stop-btn,.report-btn{min-height:52px;padding:14px 16px;font-size:16px;border-radius:13px}
+.pick-btn,.voice-btn,.next-turn button,.map-tool-btn,.locate-btn{min-height:46px;font-size:14px;padding:11px 14px}
+.privacy-note,.empty,.safety p,.notice,.proximity-alert{font-size:14px;line-height:1.65}
+.vehicle-info strong{font-size:15px}.vehicle-info small,.vehicle-row>strong{font-size:13px}
+.count{min-width:42px;height:42px;font-size:16px}
+.mobile-menu-trigger,.topbar-menu-btn{min-height:46px;padding:11px 15px;font-size:14px;border-radius:12px}
+.mobile-menu-sheet{padding:20px 18px calc(24px + env(safe-area-inset-bottom))}
+.mobile-menu-head strong{font-size:20px}.mobile-menu-head small{font-size:14px}
+.menu-action{min-height:56px;padding:15px 13px;font-size:16px}
+button,a,input,select{font-family:inherit}
+button{line-height:1.35}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffd166;outline-offset:3px}
+.welcome-banner{padding:22px 24px;border-radius:20px}
+.welcome-copy h2{font-size:clamp(21px,2.3vw,29px);line-height:1.35}
+.welcome-copy p{font-size:15px;line-height:1.7}
+.welcome-eyebrow,.welcome-note{font-size:13px}
+.welcome-actions button,.welcome-actions a{min-height:48px;font-size:14px;padding:12px 16px}
+.map-caption{font-size:14px;padding:12px 14px}
+.map-traffic-status{min-height:62px}
+.traffic-count strong{font-size:25px}.traffic-count span,.traffic-nearest span{font-size:12px}.traffic-nearest strong{font-size:14px}
+.route-option{min-height:66px;padding:12px}
+.route-option-main strong{font-size:16px}.route-option-main small{font-size:13px}
+.safety{padding:15px 17px}
+footer{font-size:13px}
+@media(max-width:700px){
+ body{font-size:16px}
+ .topbar{min-height:64px;padding:9px 12px;gap:10px}
+ .topbar h1{font-size:20px}.topbar p{font-size:12px;max-width:58vw}
+ .navigation-layout .route-panel{padding:15px}
+ .navigation-layout .route-heading h2{font-size:18px}.navigation-layout .route-heading p{font-size:13px}
+ .navigation-layout .route-form label{font-size:14px}
+ .navigation-layout .route-form input{min-height:52px;font-size:16px;padding:13px}
+ .navigation-layout .route-btn{min-height:54px;font-size:16px}
+ .navigation-layout .pick-btn,.navigation-layout .voice-btn{min-height:48px;font-size:13px}
+ .navigation-layout .map-wrap{height:56dvh;min-height:340px}
+ .map-tools .locate-btn,.map-tool-btn{min-height:46px;font-size:13px;padding:11px 12px}
+ .content{padding:12px;gap:12px}
+ .panel{padding:16px}
+ .panel-title h2{font-size:18px}.panel-title p{font-size:13px}
+ .primary-btn,.stop-btn,.report-btn{min-height:54px;font-size:16px}
+ .hazard-label{font-size:14px}
+ .hazard-label input,.hazard-label select{min-height:52px;font-size:16px}
+ .privacy-note,.empty,.safety p,.notice,.proximity-alert{font-size:14px}
+ .vehicle-row{min-height:62px}
+ .mobile-menu-sheet{max-height:88dvh;padding:18px 15px calc(24px + env(safe-area-inset-bottom))}
+ .menu-action{min-height:58px;font-size:16px}
+ .welcome-banner{margin:10px 10px 0;padding:16px}
+ .welcome-copy h2{font-size:21px}.welcome-copy p{font-size:14px}
+}
+@media(prefers-contrast:more){
+ .panel,.route-panel,.welcome-banner{border-color:#82939e}
+ .privacy-note,.empty,.panel-title p,.route-heading p{color:#d0dce3}
+ button,input,select{border-width:2px}
+}
