@@ -6,6 +6,7 @@ import { AlertTriangle, LocateFixed, MapPin, Navigation, Radio, Route as RouteIc
 type Position = { lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
 type Vehicle = { id: string; lat: number; lng: number; accuracy: number; speed: number | null; heading: number | null; updatedAt: number };
 type RoutePoint = { lat: number; lng: number };
+type RouteStop = { id: string; name: string; point: RoutePoint | null };
 type HazardType = "accident" | "broken_vehicle" | "obstacle" | "road_hazard";
 type Hazard = { id: string; lat: number; lng: number; type: HazardType; note: string; createdAt: number };
 type RouteStep = { distance: number; duration: number; name: string; maneuver: { type: string; modifier?: string; location: [number, number] } };
@@ -15,14 +16,14 @@ const STREET_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 type RoadMapProps = {
   mapLayer: "standard" | "satellite"; driveMode: boolean; position: Position | null; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
-  routePoints: RoutePoint[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
+  routePoints: RoutePoint[]; stops: RouteStop[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
   onPick: (point: RoutePoint, target: "origin" | "destination") => void;
   onMovePin: (point: RoutePoint, target: "origin" | "destination") => void;
 };
-function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
+function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,routePoints,stops,sharing,vehicles,hazards,pickTarget,onPick,onMovePin}:RoadMapProps) {
   const host=useRef<HTMLDivElement|null>(null), mapRef=useRef<MapLibreMap|null>(null), markersRef=useRef<MapLibreMarker[]>([]);
   const [styleReady,setStyleReady]=useState(false);
-  const propsRef=useRef({position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
+  const propsRef=useRef({position,originPoint,destinationPoint,routePoints,stops,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer});
   propsRef.current={position,originPoint,destinationPoint,routePoints,sharing,vehicles,hazards,pickTarget,onPick,onMovePin,mapLayer};
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
     if(!map.isStyleLoaded())return;
@@ -69,10 +70,11 @@ function RoadMap({mapLayer,driveMode,position,originPoint,destinationPoint,route
     };
     if(position)add(position,'<span class="me-dot"></span>',"map-marker-me");
     if(originPoint)add(originPoint,"📍","map-marker-pin",true,"origin");
-    if(destinationPoint)add(destinationPoint,"📍","map-marker-pin",true,"destination");
+    if(destinationPoint)add(destinationPoint,"🏁","map-marker-pin",true,"destination");
+    stops.forEach((stop,index)=>{if(stop.point)add(stop.point,String(index+1),"map-marker-stop");});
     if(sharing)vehicles.filter(v=>Date.now()-v.updatedAt<120000).forEach(v=>add(v,"🚘","map-marker-car"));
     hazards.filter(h=>Date.now()-h.createdAt<1800000).forEach(h=>add(h,h.type==="accident"?"🚨":h.type==="broken_vehicle"?"🚗":h.type==="obstacle"?"🪨":"⚠️","map-marker-hazard"));
-  },[position,originPoint,destinationPoint,sharing,vehicles,hazards,mapLayer,styleReady]);
+  },[position,originPoint,destinationPoint,stops,sharing,vehicles,hazards,mapLayer,styleReady]);
   return <div ref={host} className="map maplibre-map" aria-label="แผนที่นำทาง 3D"/>;
 }
 
@@ -169,6 +171,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [stops,setStops]=useState<RouteStop[]>([]);
   const [pickTarget, setPickTarget] = useState<"origin" | "destination" | null>(null);
   const [originPoint, setOriginPoint] = useState<RoutePoint | null>(null);
   const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
@@ -287,7 +290,11 @@ export default function App() {
     try {
       const start = originPoint || (origin.trim().toLowerCase() === "ตำแหน่งของฉัน" && position ? { lat: position.lat, lng: position.lng } : await geocode(origin.trim()));
       const end = destinationPoint || await geocode(destination.trim());
-      const url = "https://router.project-osrm.org/route/v1/driving/" + start.lng + "," + start.lat + ";" + end.lng + "," + end.lat + "?overview=full&steps=true&alternatives=true&geometries=geojson";
+      const resolvedStops=await Promise.all(stops.map(async stop=>({ ...stop, point:stop.point||await geocode(stop.name) })));
+      if(resolvedStops.some(stop=>!stop.name.trim()||!stop.point))throw new Error("กรุณาเลือกจุดพักแวะจากรายการแนะนำให้ครบ");
+      const waypoints=[start,...resolvedStops.map(stop=>stop.point!),end];
+      const coordinatePath=waypoints.map(point=>point.lng+","+point.lat).join(";");
+      const url = "https://router.project-osrm.org/route/v1/driving/" + coordinatePath + "?overview=full&steps=true&alternatives=true&geometries=geojson";
       const response = await fetch(url);
       if (!response.ok) throw new Error("บริการคำนวณเส้นทางไม่พร้อมใช้งาน");
       const result = await response.json() as { code: string; routes?: RouteResult[] };
@@ -331,6 +338,15 @@ export default function App() {
       <form className="route-form" onSubmit={searchRoute}>
         <LocationSearch label="จาก" value={origin} placeholder="ค้นหาจุดเริ่มต้น หรือเลือกตำแหน่งของฉัน" onChange={v=>{setOrigin(v);setOriginPoint(null);}} onSelect={p=>{setOrigin(p.name||p.display_name.split(",")[0]);setOriginPoint({lat:Number(p.lat),lng:Number(p.lon)});setRouteError("");}} />
         <LocationSearch label="ไปยัง" value={destination} placeholder="พิมพ์ชื่อสถานที่ เช่น สนามบิน" onChange={v=>{setDestination(v);setDestinationPoint(null);}} onSelect={p=>{setDestination(p.name||p.display_name.split(",")[0]);setDestinationPoint({lat:Number(p.lat),lng:Number(p.lon)});setRouteError("");}} />
+        <div className="route-stops">
+          <div className="route-stops-heading"><strong>จุดพักแวะระหว่างทาง</strong><small>เพิ่มได้ไม่เกิน 3 จุด เช่น ปั๊มน้ำมัน ร้านอาหาร หรือคาเฟ่</small></div>
+          {stops.map((stop,index)=><div className="route-stop-row" key={stop.id}>
+            <span className="route-stop-number">{index+1}</span>
+            <div className="route-stop-search"><LocationSearch label={`จุดพักแวะ ${index+1}`} value={stop.name} placeholder="ค้นหาปั๊มน้ำมัน ร้านอาหาร หรือสถานที่" onChange={value=>setStops(old=>old.map(item=>item.id===stop.id?{...item,name:value,point:null}:item))} onSelect={place=>setStops(old=>old.map(item=>item.id===stop.id?{...item,name:place.name||place.display_name.split(",")[0],point:{lat:Number(place.lat),lng:Number(place.lon)}}:item))}/></div>
+            <button type="button" className="remove-stop-btn" aria-label="ลบจุดพักแวะ" onClick={()=>setStops(old=>old.filter(item=>item.id!==stop.id))}>ลบ</button>
+          </div>)}
+          {stops.length<3&&<button type="button" className="add-stop-btn" onClick={()=>setStops(old=>[...old,{id:crypto.randomUUID(),name:"",point:null}])}>＋ เพิ่มจุดพักแวะ</button>}
+        </div>
         <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
       </form>
       {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
@@ -340,7 +356,7 @@ export default function App() {
       <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
-      <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
+      <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} stops={stops} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
       <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
       <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
