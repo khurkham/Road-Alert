@@ -87,6 +87,17 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   return 6371000 * 2 * Math.asin(Math.sqrt(h));
 }
 
+async function geocode(query: string): Promise<RoutePoint> {
+  const url=new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q",query);url.searchParams.set("format","jsonv2");
+  url.searchParams.set("limit","1");url.searchParams.set("countrycodes","th");
+  url.searchParams.set("accept-language","th");
+  const response=await fetch(url);
+  if(!response.ok)throw new Error("ค้นหาสถานที่ไม่สำเร็จ");
+  const data=await response.json() as Array<{lat:string;lon:string}>;
+  if(!data.length)throw new Error('ไม่พบสถานที่: "'+query+'"');
+  return {lat:Number(data[0].lat),lng:Number(data[0].lon)};
+}
 type PlaceSuggestion = { place_id: number; lat: string; lon: string; name?: string; display_name: string; type?: string };
 function LocationSearch({label,value,placeholder,onChange,onSelect}:{
   label:string; value:string; placeholder:string;
