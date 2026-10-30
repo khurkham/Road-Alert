@@ -115,3 +115,41 @@
 .map-marker-stop{display:grid;place-items:center;width:28px;height:28px;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#e2a63b;color:#1b252b;font-size:12px;font-weight:900;box-shadow:0 2px 7px #0008}
 .map-marker-stop::first-letter{transform:rotate(45deg)}
 @media(max-width:700px){.route-stops{padding:10px}.route-stop-row{gap:6px}.route-stop-search .location-search-wrap>input{font-size:16px}.remove-stop-btn{padding:10px}}
+
+
+/* Dedicated in-app navigation mode */
+.start-nav-btn,.stop-nav-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;border:0;border-radius:12px;padding:14px 12px;font-size:15px;font-weight:850;cursor:pointer}
+.start-nav-btn{background:#168c4a;color:#fff;box-shadow:0 5px 16px #168c4a35}
+.stop-nav-btn{background:#452a30;border:1px solid #8e4a51;color:#ffd1d3}
+.nav-live-pill{margin-left:auto;border:1px solid #47d58c;background:#143c2a;color:#a7f3c5;border-radius:99px;padding:7px 12px;font-size:12px;font-weight:800}
+.navigation-guidance{position:absolute;z-index:20;top:12px;left:12px;right:12px;padding:14px 16px;border-radius:16px;background:#13833f;color:#fff;box-shadow:0 5px 22px #0005;pointer-events:none}
+.guidance-main{display:flex;align-items:center;gap:14px}
+.guidance-main>svg{flex-shrink:0}
+.guidance-main>div{display:flex;flex-direction:column;gap:5px}
+.guidance-main small{font-size:11px;opacity:.85}
+.guidance-main strong{font-size:19px;line-height:1.25}
+.guidance-sub{display:flex;justify-content:space-between;gap:10px;margin-top:11px;padding-top:9px;border-top:1px solid #ffffff40;font-size:12px;color:#e4ffec}
+.nav-mode .topbar{display:none}
+.nav-mode .navigation-layout{display:block;margin:0;min-height:calc(100dvh - 32px)}
+.nav-mode .route-panel{position:absolute;z-index:30;left:12px;bottom:12px;width:min(360px,calc(100vw - 24px));max-height:38dvh;overflow:auto;margin:0;padding:12px;background:#13212beF;backdrop-filter:blur(10px);box-shadow:0 5px 24px #0005}
+.nav-mode .route-heading,.nav-mode .route-form,.nav-mode .route-options,.nav-mode .map-pick-controls{display:none}
+.nav-mode .route-summary{margin:0 0 9px}
+.nav-mode .navigation-controls{margin:0;display:flex;flex-direction:column;gap:8px}
+.nav-mode .navigation-controls .next-turn{display:none}
+.nav-mode .map-wrap{height:calc(100dvh - 32px);min-height:520px;max-height:none;margin:0;border-radius:0}
+.nav-mode .map-tools{top:auto;bottom:18px;right:14px}
+.nav-mode .map-tools .map-tool-btn:nth-child(2){display:none}
+.nav-mode .map-caption{left:12px;right:auto;bottom:12px;max-width:calc(100vw - 410px)}
+@media(max-width:700px){
+ .nav-mode .navigation-layout{min-height:100dvh}
+ .nav-mode .map-wrap{height:100dvh;min-height:100dvh}
+ .nav-mode .route-panel{left:9px;right:9px;bottom:9px;width:auto;max-height:27dvh;padding:10px;border-radius:15px}
+ .nav-mode .route-summary{font-size:11px}
+ .nav-mode .navigation-controls{flex-direction:row;align-items:stretch}
+ .nav-mode .start-nav-btn,.nav-mode .stop-nav-btn,.nav-mode .voice-btn{flex:1;min-width:0;padding:12px 8px;font-size:12px}
+ .nav-mode .navigation-guidance{top:9px;left:9px;right:9px;padding:12px 14px;border-radius:14px}
+ .nav-mode .guidance-main strong{font-size:17px}
+ .nav-mode .guidance-sub{font-size:10px}
+ .nav-mode .map-caption{left:9px;right:auto;bottom:calc(27dvh + 18px);max-width:calc(100vw - 18px);font-size:10px}
+ .nav-mode .map-tools{top:calc(100dvh - 27dvh - 65px);bottom:auto;right:9px}
+}
