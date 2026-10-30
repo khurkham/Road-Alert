@@ -228,3 +228,117 @@ footer{font-size:13px}
  .privacy-note,.empty,.panel-title p,.route-heading p{color:#d0dce3}
  button,input,select{border-width:2px}
 }
+
+
+
+/* Road Alert visual refresh — polished map-first navigation UI */
+:root{
+  color-scheme:dark;
+  --ra-bg:#0b1218;--ra-surface:#14212b;--ra-surface-2:#192a35;
+  --ra-line:#2a414e;--ra-muted:#a8bac5;--ra-text:#f3f8fb;
+  --ra-green:#18b77a;--ra-green-2:#39d99a;--ra-shadow:0 12px 36px #0005;
+}
+body{background:radial-gradient(ellipse at 50% -20%,#1a3940 0%,var(--ra-bg) 58%);color:var(--ra-text)}
+.app-shell{max-width:1560px;padding:0 14px;background:transparent}
+.topbar{margin:0 8px;border-bottom:1px solid #ffffff12;min-height:78px}
+.brand-mark{width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#20c98a,#087b59);box-shadow:0 7px 22px #0a9a6538}
+.topbar h1{font-size:25px;font-weight:800;letter-spacing:-.6px}
+.topbar p{color:#a9bdc7;font-size:13px}
+.topbar-menu-btn{background:linear-gradient(135deg,#1ac184,#0e8b61);border:1px solid #59e4ac66;box-shadow:0 5px 18px #0b9a6533}
+.welcome-banner{position:relative;overflow:hidden;margin:14px 8px 12px;padding:17px 22px;border:1px solid #3c6558;background:linear-gradient(110deg,#173e34 0%,#142630 65%,#172b39 100%);box-shadow:var(--ra-shadow)}
+.welcome-banner:after{content:"";position:absolute;width:240px;height:240px;border-radius:50%;right:12%;top:-175px;background:#3ce0a022;filter:blur(8px);pointer-events:none}
+.welcome-copy h2{font-size:clamp(20px,2vw,27px);letter-spacing:-.35px}
+.welcome-copy p{max-width:900px;color:#c6d6dc}
+.welcome-actions{position:relative;z-index:1}
+.welcome-actions button{background:#19a970;border-color:#48e1a2;box-shadow:0 5px 16px #07925d33}
+.welcome-actions a{background:#101e27;border-color:#49616c}
+.welcome-note{color:#b4d7c8}
+.navigation-layout{margin:0 8px 16px!important}
+.navigation-layout .map-wrap{height:calc(100vh - 205px)!important;min-height:570px!important;border:1px solid #3b5360;border-radius:22px!important;box-shadow:0 18px 55px #0006;background:#17252d}
+.maplibre-map{background:#1a2a32}
+.map-menu-trigger{border:1px solid #dce8eb;background:#f8fbfc;color:#152831;padding:12px 16px;border-radius:14px;box-shadow:0 8px 25px #0004;font-size:14px}
+.map-menu-trigger:hover,.map-tool-btn:hover,.locate-btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px #0004}
+.map-tools{top:14px;right:14px;gap:9px}
+.map-tool-btn,.map-tools .locate-btn{min-height:48px;border:1px solid #dce8eb;background:#f8fbfc;color:#172c36;border-radius:14px;padding:12px 15px;font-size:13px;box-shadow:0 6px 20px #0003}
+.map-tools .locate-btn{position:static}
+.map-traffic-status{left:14px;top:72px;border:1px solid #ffffff22;border-radius:16px;background:#101c25ed;box-shadow:0 8px 24px #0004;padding:9px}
+.traffic-count strong{color:#4be3a3}
+.map-caption{background:#101b24ed;border:1px solid #ffffff1c;border-radius:13px;backdrop-filter:blur(12px);box-shadow:0 5px 18px #0004}
+.map-fallback-notice{backdrop-filter:blur(10px)}
+.maplibre-map .maplibregl-ctrl-group{border:1px solid #d9e4e8}
+.maplibre-map .maplibregl-ctrl button{background:#fff}
+.content{gap:16px;padding:18px 8px}
+.panel{background:linear-gradient(145deg,#182833,#13212a);border:1px solid #304653;box-shadow:0 8px 24px #0002;border-radius:19px}
+.panel-title{margin-bottom:18px}
+.panel-title>svg{color:#50dfa5}
+.panel-title h2{font-weight:800;letter-spacing:-.2px}
+.primary-btn{background:linear-gradient(105deg,#18b77a,#0c9566);box-shadow:0 6px 18px #0a9c6333}
+.primary-btn:hover,.report-btn:hover,.route-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.stop-btn{background:#48282f;border:1px solid #a14f5c;color:#ffc1c7}
+.report-btn{background:linear-gradient(105deg,#c65c3d,#a94332);box-shadow:0 6px 18px #a9433233}
+.count{background:#174936;color:#64efb0;border:1px solid #2d7c5a}
+.vehicle-row{border-top-color:#2c414c}
+.vehicle-near{border:1px solid #7b4140;background:#43282c}
+.safety{border:1px solid #745b31;background:linear-gradient(110deg,#3a301f,#2d281f);border-radius:15px}
+footer{color:#91a4af;padding-bottom:28px}
+.mobile-menu-backdrop{align-items:center;padding:24px;background:#02080dbb;backdrop-filter:blur(7px)}
+.mobile-menu-sheet{width:min(100%,900px);max-height:88dvh;border:1px solid #49616d;border-radius:24px;background:linear-gradient(145deg,#1a2b36,#101c25);box-shadow:0 25px 80px #0009}
+.mobile-menu-head{padding-bottom:17px;margin-bottom:15px}
+.mobile-menu-head strong{font-size:21px}
+.mobile-menu-head button{width:44px;height:44px;border-radius:13px}
+.road-tools-sheet .content{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.road-tools-sheet .safety{grid-column:1/-1}
+.road-tools-sheet .route-panel{border:1px solid #304653;background:#14232c;border-radius:17px}
+.route-form{gap:12px}
+.route-form input{min-height:52px;background:#0e1921;border-color:#3c5663}
+.route-btn{background:linear-gradient(105deg,#19b77a,#0b9363);box-shadow:0 5px 16px #0b936333}
+.route-summary{color:#8ff0bd}
+.route-error{color:#ffb7aa}
+.place-suggestions{border:1px solid #b8cbd2;box-shadow:0 14px 35px #0007}
+.navigation-controls{gap:9px}
+.voice-btn.active{background:#153d30;border-color:#35bd86;color:#9af2c7}
+.next-turn{background:#15382e;border-color:#328361;border-radius:13px}
+.hazard-label input,.hazard-label select{background:#0e1921;border-color:#3c5663}
+input::placeholder{color:#8499a5}
+button{transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+@media(max-width:700px){
+ .app-shell{padding:0 5px}
+ .topbar{margin:0 4px;min-height:66px;padding:8px 7px!important}
+ .brand-mark{width:41px;height:41px;border-radius:13px}
+ .topbar h1{font-size:21px}
+ .topbar p{font-size:11px}
+ .topbar-menu-btn{min-height:44px;padding:9px 12px;font-size:13px}
+ .welcome-banner{margin:9px 4px 10px;padding:14px;border-radius:16px}
+ .welcome-copy h2{font-size:19px}
+ .welcome-copy p{font-size:12px;line-height:1.55}
+ .welcome-actions button,.welcome-actions a{min-height:44px;font-size:12px}
+ .navigation-layout{margin:0 3px 10px!important}
+ .navigation-layout .map-wrap{height:68dvh!important;min-height:430px!important;max-height:720px!important;border-radius:17px!important}
+ .map-menu-trigger{left:9px!important;top:9px!important;min-height:43px;padding:9px 12px;font-size:12px}
+ .map-tools{right:9px;top:9px;gap:6px}
+ .map-tool-btn,.map-tools .locate-btn{min-height:42px;padding:9px 10px;font-size:11px;border-radius:11px}
+ .map-traffic-status{left:9px!important;top:60px!important;max-width:calc(100% - 18px)!important;padding:6px;border-radius:12px}
+ .traffic-count{min-width:55px}
+ .traffic-count strong{font-size:19px}
+ .traffic-count span,.traffic-nearest span{font-size:9px}
+ .traffic-nearest strong{font-size:10px}
+ .map-caption{font-size:11px;padding:9px 10px}
+ .content{padding:10px 4px;gap:10px}
+ .panel{padding:15px;border-radius:16px}
+ .panel-title{margin-bottom:14px}
+ .panel-title h2{font-size:17px}
+ .panel-title p{font-size:12px}
+ .primary-btn,.stop-btn,.report-btn{min-height:51px;font-size:14px}
+ .privacy-note,.empty,.safety p,.notice,.proximity-alert{font-size:12px;line-height:1.6}
+ .mobile-menu-backdrop{align-items:flex-end;padding:0}
+ .mobile-menu-sheet{width:100%;max-height:91dvh;border-radius:23px 23px 0 0;padding:16px 12px calc(20px + env(safe-area-inset-bottom))}
+ .mobile-menu-head strong{font-size:19px}
+ .road-tools-sheet .content{grid-template-columns:1fr;gap:10px}
+ .road-tools-sheet .safety{grid-column:auto}
+ .road-tools-sheet .route-panel{padding:14px}
+ .road-tools-sheet .route-form{gap:9px}
+ .route-form input{min-height:50px;font-size:16px}
+ .route-btn{min-height:51px;font-size:15px}
+ footer{font-size:11px;padding:8px 12px 22px}
+}
+@media(prefers-reduced-motion:reduce){button{transition:none}}
