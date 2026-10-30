@@ -161,7 +161,20 @@ export default function App() {
   const [nearbyAlert, setNearbyAlert] = useState("");
   const [hazards,setHazards]=useState<Hazard[]>([]); const [hazardType,setHazardType]=useState<HazardType>("accident"); const [hazardNote,setHazardNote]=useState(""); const [hazardBusy,setHazardBusy]=useState(false); const [hazardAlert,setHazardAlert]=useState(""); const [voiceOn,setVoiceOn]=useState(true); const [routeSteps,setRouteSteps]=useState<RouteStep[]>([]); const [currentStep,setCurrentStep]=useState(0); const announcedStep=useRef(-1); const announcedHazards=useRef<Set<string>>(new Set());
   const watchId = useRef<number | null>(null);
-  const sessionId = useRef<string>(crypto.randomUUID());
+  const sessionId = useRef<string>((() => {
+    // Keep one stable anonymous vehicle ID on this browser so a page refresh
+    // does not make the same phone appear as a second nearby vehicle.
+    const key = "road-alert-device-id";
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved && /^[A-Za-z0-9-]{20,50}$/.test(saved)) return saved;
+      const created = crypto.randomUUID();
+      window.localStorage.setItem(key, created);
+      return created;
+    } catch {
+      return crypto.randomUUID();
+    }
+  })());
   const alertedIds = useRef<Set<string>>(new Set());
 
   const stopSharing = useCallback(async () => {
