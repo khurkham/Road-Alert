@@ -355,3 +355,13 @@ button{transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
 .place-suggestions button small{font-size:12px;line-height:1.45;color:#586b76;overflow-wrap:anywhere}
 .suggestion-status{padding:14px 12px;color:#526570;font-size:13px;line-height:1.5}
 @media(max-width:700px){.place-suggestions{max-height:42dvh}.place-suggestions button{min-height:60px;padding:12px 10px}.place-suggestions button strong{font-size:14px}.suggestion-status{font-size:13px}}
+
+/* Keep autocomplete inside the route form flow so scroll containers cannot clip it. */
+.route-panel .place-search-field{display:flex;flex-direction:column;gap:6px;position:relative;overflow:visible}
+.route-panel .place-suggestions{position:relative!important;inset:auto!important;display:block!important;width:100%;max-height:260px;margin-top:2px;overflow-y:auto;background:#fff;color:#17232b;border:1px solid #cbd8de;border-radius:13px;box-shadow:0 8px 24px #0003;padding:5px;z-index:20}
+.route-panel .place-suggestions button{display:flex!important;width:100%;min-height:54px;align-items:flex-start;gap:10px;padding:10px;border:0;border-radius:9px;background:transparent;color:#17232b;text-align:left;cursor:pointer}
+.route-panel .place-suggestions button:hover,.route-panel .place-suggestions button:focus-visible{background:#eaf6f0;outline:2px solid #16875d;outline-offset:-2px}
+.route-panel .suggestion-status{display:block;padding:12px;color:#40545f;font-size:13px;line-height:1.5}
+.route-panel .place-suggestions button span{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.route-panel .place-suggestions button strong{font-size:14px;color:#17232b}
+.route-panel .place-suggestions button small{font-size:12px;color:#586b76;white-space:normal}
