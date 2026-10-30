@@ -342,3 +342,16 @@ button{transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
  footer{font-size:11px;padding:8px 12px 22px}
 }
 @media(prefers-reduced-motion:reduce){button{transition:none}}
+
+/* Search suggestions: clear, readable, and touch-friendly on every screen */
+.place-search-field{position:relative;display:block;width:100%;min-width:0}
+.place-search-field>input{width:100%;min-height:48px;box-sizing:border-box}
+.place-suggestions{position:absolute;z-index:12000;top:calc(100% + 7px);left:0;right:0;max-height:min(52vh,380px);overflow-y:auto;overscroll-behavior:contain;background:#fff;color:#17232b;border:1px solid #d5e0e5;border-radius:14px;box-shadow:0 16px 42px #0006;padding:6px}
+.place-suggestions button{display:flex;align-items:flex-start;gap:11px;width:100%;min-height:58px;padding:11px 10px;border:0;border-radius:10px;background:transparent;color:#17232b;text-align:left;cursor:pointer}
+.place-suggestions button:hover,.place-suggestions button:focus-visible{background:#eaf6f0;outline:2px solid #16875d;outline-offset:-2px}
+.place-suggestions button>svg{flex:0 0 auto;margin-top:3px;color:#16875d}
+.place-suggestions button span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.place-suggestions button strong{font-size:14px;font-weight:750;line-height:1.35}
+.place-suggestions button small{font-size:12px;line-height:1.45;color:#586b76;overflow-wrap:anywhere}
+.suggestion-status{padding:14px 12px;color:#526570;font-size:13px;line-height:1.5}
+@media(max-width:700px){.place-suggestions{max-height:42dvh}.place-suggestions button{min-height:60px;padding:12px 10px}.place-suggestions button strong{font-size:14px}.suggestion-status{font-size:13px}}
