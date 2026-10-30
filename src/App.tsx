@@ -158,18 +158,27 @@ export default function App() {
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearchField, setActiveSearchField] = useState<"origin" | "destination" | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [destinationPoint, setDestinationPoint] = useState<RoutePoint | null>(null);
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeOptions, setRouteOptions] = useState<RouteResult[]>([]);
   useEffect(() => {
     const query = activeSearchField === "origin" ? origin.trim() : activeSearchField === "destination" ? destination.trim() : "";
     const setSuggestions = activeSearchField === "origin" ? setOriginSuggestions : setDestinationSuggestions;
-    if (query.length < 2 || query.toLowerCase() === "ตำแหน่งของฉัน" || (activeSearchField === "origin" && originPoint) || (activeSearchField === "destination" && destinationPoint)) { setSuggestions([]); return; }
+    if (query.length < 2 || query.toLowerCase() === "ตำแหน่งของฉัน" || (activeSearchField === "origin" && originPoint) || (activeSearchField === "destination" && destinationPoint)) { setSuggestions([]); setSuggestionsLoading(false); return; }
     let cancelled = false;
+    setSuggestions([]);
+    setSuggestionsLoading(true);
     const timer = window.setTimeout(async () => {
-      try { const places = await searchPlaces(query, position ? { lat: position.lat, lng: position.lng } : null); if (!cancelled) setSuggestions(places); }
-      catch { if (!cancelled) setSuggestions([]); }
-    }, 350);
+      try {
+        const places = await searchPlaces(query, position ? { lat: position.lat, lng: position.lng } : null);
+        if (!cancelled) setSuggestions(places);
+      } catch {
+        if (!cancelled) setSuggestions([]);
+      } finally {
+        if (!cancelled) setSuggestionsLoading(false);
+      }
+    }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [origin, destination, activeSearchField, originPoint, destinationPoint, position?.lat, position?.lng]);
 
@@ -354,10 +363,10 @@ export default function App() {
     </div>
     {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet road-tools-sheet" role="dialog" aria-modal="true" aria-label="เครื่องมือ Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เครื่องมือ Road Alert</strong><small>เส้นทาง · รถใกล้เคียง · เหตุอันตราย</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div>
             <section className="route-panel">
-        <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
+        <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาสถานที่และเส้นทาง</h2><p>พิมพ์เพียงบางคำ เช่น “สนาม” แล้วเลือกสถานที่จากรายการแนะนำ</p></div></div>
         <form className="route-form" onSubmit={searchRoute}>
-          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม หรือโรงพยาบาล" />{activeSearchField === "origin" && originSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
-          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน ระบบจะแนะนำสถานที่ใกล้เคียง" />{activeSearchField === "destination" && destinationSuggestions.length > 0 && <div className="place-suggestions" role="listbox">{destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={16}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>)}</div>}</div></label>
+          <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setOrigin(e.target.value); setOriginPoint(null); }} placeholder="เช่น ตำแหน่งของฉัน หรือพิมพ์ว่า สนาม" />{activeSearchField === "origin" && origin.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : originSuggestions.length ? originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">ไม่พบรายการที่ตรงกัน ลองพิมพ์ชื่อสถานที่หรือคำค้นอื่น</div>}</div>}</div></label>
+          <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setDestination(e.target.value); setDestinationPoint(null); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม โรงเรียน ตลาด" />{activeSearchField === "destination" && destination.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : destinationSuggestions.length ? destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">ไม่พบรายการที่ตรงกัน ลองพิมพ์ชื่อสถานที่หรือคำค้นอื่น</div>}</div>}</div></label>
           <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
         </form>
         {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
