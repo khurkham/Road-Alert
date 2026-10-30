@@ -166,6 +166,8 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mapLayer, setMapLayer] = useState<"standard" | "satellite">("standard");
   const [driveMode, setDriveMode] = useState(false);
+  const [navMode,setNavMode]=useState(false);
+  const navWatchId=useRef<number|null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -198,7 +200,29 @@ export default function App() {
 
   useEffect(() => () => {
     if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+    if (navWatchId.current !== null) navigator.geolocation.clearWatch(navWatchId.current);
   }, []);
+
+  const stopNavigation=useCallback(()=>{
+    setNavMode(false);setDriveMode(false);
+    if(navWatchId.current!==null){navigator.geolocation.clearWatch(navWatchId.current);navWatchId.current=null;}
+    window.speechSynthesis?.cancel();
+  },[]);
+  const startNavigation=()=>{
+    if(routePoints.length<2){setRouteError("กรุณาค้นหาเส้นทางก่อนเริ่มนำทาง");return;}
+    if(!("geolocation" in navigator)||!window.isSecureContext){setRouteError("กรุณาเปิดเว็บไซต์ผ่าน HTTPS และอนุญาต GPS");return;}
+    setNavMode(true);setDriveMode(true);setRouteError("");
+    navigator.geolocation.getCurrentPosition(p=>{
+      setPosition({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,speed:p.coords.speed,heading:p.coords.heading,updatedAt:Date.now()});
+      setGpsMessage("กำลังนำทาง · GPS ±"+Math.round(p.coords.accuracy)+" เมตร");
+      if(navWatchId.current!==null)navigator.geolocation.clearWatch(navWatchId.current);
+      navWatchId.current=navigator.geolocation.watchPosition(q=>{
+        setPosition({lat:q.coords.latitude,lng:q.coords.longitude,accuracy:q.coords.accuracy,speed:q.coords.speed,heading:q.coords.heading,updatedAt:Date.now()});
+        setGpsMessage("กำลังนำทาง · GPS ±"+Math.round(q.coords.accuracy)+" เมตร");
+      },()=>setGpsMessage("สัญญาณ GPS ขาดหาย กำลังรอสัญญาณ"),{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+      if(voiceOn&&routeSteps[0])speakThai("เริ่มนำทาง "+stepText(routeSteps[0]));
+    },e=>{setNavMode(false);setDriveMode(false);setRouteError(e.code===1?"กรุณาอนุญาตตำแหน่ง GPS เพื่อเริ่มนำทาง":"ไม่สามารถรับ GPS ได้ กรุณาลองอีกครั้ง");},{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
+  };
 
   const locate = () => {
     if (!("geolocation" in navigator)) { setGpsMessage("เบราว์เซอร์นี้ไม่รองรับ GPS"); return; }
@@ -330,8 +354,8 @@ export default function App() {
   const routeStart = routePoints[0];
   const routeEnd = routePoints[routePoints.length - 1];
 
-  return <main className="app-shell">
-    <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>ค้นหาเส้นทางและแจ้งเตือนรถใกล้เคียง · รุ่นทดลอง</p></div><span className="trial-badge">ทดลองใช้</span><button className="mobile-menu-trigger" aria-label="เปิดเมนู" onClick={()=>setMobileMenuOpen(true)}><Menu size={21}/><span>เมนู</span></button></header>
+  return <main className={navMode?"app-shell nav-mode":"app-shell"}>
+    <header className="topbar"><div className="brand-mark"><Radio size={21} /></div><div><h1>Road Alert</h1><p>นำทางด้วย GPS และเสียงภาษาไทย</p></div>{navMode&&<span className="nav-live-pill">กำลังนำทาง</span>}<button className="mobile-menu-trigger" aria-label="เปิดเมนู" onClick={()=>setMobileMenuOpen(true)}><Menu size={21}/><span>เมนู</span></button></header>
     <div className="navigation-layout">
     <section className="route-panel">
       <div className="route-heading"><RouteIcon size={20}/><div><h2>ค้นหาเส้นทาง</h2><p>กรอกจุดเริ่มต้นและปลายทาง แล้วกดค้นหา</p></div></div>
@@ -353,12 +377,12 @@ export default function App() {
       {routeError && <p className="route-error"><AlertTriangle size={15}/>{routeError}</p>}
       {routeOptions.length > 0 && <div className="route-options"><h3>เลือกเส้นทาง</h3>{routeOptions.map((route,index)=><button type="button" key={index} className={selectedRouteIndex===index?"route-option selected":"route-option"} onClick={()=>chooseRoute(route,index)}><span className="route-option-icon"><Navigation size={18}/></span><span className="route-option-main"><strong>{Math.max(1,Math.round(route.duration/60))} นาที</strong><small>{(route.distance/1000).toFixed(1)} กม. · {index===0?"เส้นทางแนะนำ":"เส้นทางทางเลือก "+(index+1)}</small></span>{selectedRouteIndex===index&&<span className="route-option-check">เลือกแล้ว</span>}</button>)}</div>}
       <div className="map-pick-controls"><span>หรือเลือกจุดจากแผนที่</span><button type="button" className={pickTarget==="origin"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="origin"?null:"origin")}><MapPin size={15}/>เลือกจุดเริ่มต้น</button><button type="button" className={pickTarget==="destination"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="destination"?null:"destination")}><MapPin size={15}/>เลือกปลายทาง</button>{pickTarget&&<small>แตะตำแหน่งบนแผนที่เพื่อกำหนด{pickTarget==="origin"?"จุดเริ่มต้น":"ปลายทาง"}</small>}</div>
-      <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
+      <div className="navigation-controls">{routePoints.length>1&&!navMode&&<button className="start-nav-btn" type="button" onClick={startNavigation}><Navigation size={18}/>เริ่มนำทาง</button>}{navMode&&<button className="stop-nav-btn" type="button" onClick={stopNavigation}><X size={18}/>ออกจากโหมดนำทาง</button>}<button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
     </section>
     <section className="map-wrap">
       <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} stops={stops} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
       <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>setMapLayer(mapLayer==="standard"?"satellite":"standard")}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
-      <div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
+      {navMode&&<div className="navigation-guidance" role="status"><div className="guidance-main"><Navigation size={27}/><div><small>นำทาง · คำสั่งถัดไป</small><strong>{routeSteps.length?stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]):"ขับตามเส้นทางที่แสดง"}</strong></div></div><div className="guidance-sub"><span>{routeSummary}</span><span>{position?.speed!==null&&position?.speed!==undefined?Math.round(position.speed*3.6)+" กม./ชม.":"รอ GPS"}</span></div></div>}<div className="map-caption"><MapPin size={15}/>{gpsMessage}</div>
     </section>
     </div>
     {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}><section className="mobile-menu-sheet" role="dialog" aria-modal="true" aria-label="เมนู Road Alert" onClick={e => e.stopPropagation()}><div className="mobile-menu-head"><div><strong>เมนู Road Alert</strong><small>เลือกเครื่องมือที่ต้องการ</small></div><button aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}><X size={21}/></button></div><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".route-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Navigation size={19}/>ค้นหาเส้นทาง</button><button className="menu-action" onClick={() => {setMapLayer("standard");setMobileMenuOpen(false);}}><Layers size={19}/>แผนที่ถนน {mapLayer==="standard"?"✓":""}</button><button className="menu-action" onClick={() => {setMapLayer("satellite");setMobileMenuOpen(false);}}><Satellite size={19}/>ภาพถ่ายดาวเทียม {mapLayer==="satellite"?"✓":""}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);locate();}}><LocateFixed size={19}/>ตำแหน่งของฉัน</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".share-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><Radio size={19}/>{sharing?"สถานะการแชร์ตำแหน่ง":"แชร์ตำแหน่งรถ"}</button><button className="menu-action" onClick={() => {setMobileMenuOpen(false);document.querySelector(".hazard-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}}><AlertTriangle size={19}/>รายงานเหตุอันตราย</button><div className="menu-note"><Box size={17}/><span>แผนที่ใช้มุมเอียง 3D และแสดงอาคารเมื่อผู้ให้บริการมีข้อมูลรองรับ</span></div></section></div>}
