@@ -115,13 +115,20 @@ async function searchPlaces(query: string, near?: RoutePoint | null): Promise<Pl
     "ตลาด": ["ตลาดสด", "ตลาดนัด", "ตลาด"],
     "วัด": ["วัด", "สำนักสงฆ์"],
     "โรงเรียน": ["โรงเรียน", "สถานศึกษา"],
-    "โรงพยาบาล": ["โรงพยาบาล", "คลินิก"]
+    "โรงพยาบาล": ["โรงพยาบาล", "คลินิก"],
+    "คลอง": ["คลอง", "คลองชลประทาน", "คลองส่งน้ำ", "สะพานข้ามคลอง"],
+    "สะพาน": ["สะพาน", "สะพานข้ามแม่น้ำ", "สะพานข้ามคลอง"],
+    "สถานี": ["สถานีขนส่ง", "สถานีรถไฟ", "สถานีตำรวจ", "สถานีบริการน้ำมัน"],
+    "ปั๊ม": ["ปั๊มน้ำมัน", "สถานีบริการน้ำมัน"],
+    "ร้าน": ["ร้านอาหาร", "ร้านสะดวกซื้อ", "ร้านค้า"],
+    "หมู่บ้าน": ["หมู่บ้าน", "ชุมชน"],
+    "โรงแรม": ["โรงแรม", "ที่พัก", "รีสอร์ต"]
   };
   const terms = Array.from(new Set([normalized, ...(expansions[normalized] || [])]));
   const fetchTerm = async (term: string) => {
     const url = new URL("https://photon.komoot.io/api/");
     url.searchParams.set("q", term);
-    url.searchParams.set("limit", "12");
+    url.searchParams.set("limit", "20");
     url.searchParams.set("lang", "th");
     if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) {
       url.searchParams.set("lat", String(near.lat));
@@ -147,7 +154,7 @@ async function searchPlaces(query: string, near?: RoutePoint | null): Promise<Pl
   }
   const unique = places.filter((place, index, list) => list.findIndex(other => other.label === place.label) === index);
   if (near) unique.sort((a, b) => distanceMeters(near, a) - distanceMeters(near, b));
-  return unique.slice(0, 12);
+  return unique.slice(0, 15);
 }
 async function geocode(query: string): Promise<RoutePoint> {
   // Explicit user-submitted searches only; no autocomplete.
