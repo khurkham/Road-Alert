@@ -195,8 +195,11 @@ export default function App() {
       try {
         const places = await searchPlaces(query, position ? { lat: position.lat, lng: position.lng } : null);
         if (!cancelled) setSuggestions(places);
-      } catch {
-        if (!cancelled) setSuggestions([]);
+      } catch (error) {
+        if (!cancelled) {
+          setSuggestions([]);
+          setSuggestionError(error instanceof Error ? error.message : "เชื่อมต่อบริการค้นหาสถานที่ไม่ได้ กรุณาลองใหม่อีกครั้ง");
+        }
       } finally {
         if (!cancelled) setSuggestionsLoading(false);
       }
