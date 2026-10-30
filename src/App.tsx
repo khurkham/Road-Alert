@@ -13,6 +13,7 @@ type RouteResult = { distance: number; duration: number; geometry: { coordinates
 
 const STREET_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const ROAD_FALLBACK_TILES = "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
 type RoadMapProps = {
   mapLayer: "standard" | "satellite"; driveMode: boolean; position: Position | null; onMapError: (message: string) => void; originPoint: RoutePoint | null; destinationPoint: RoutePoint | null;
   routePoints: RoutePoint[]; sharing: boolean; vehicles: Vehicle[]; hazards: Hazard[]; pickTarget: "origin" | "destination" | null;
@@ -27,6 +28,7 @@ function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destination
   const setupStyle=useCallback((map:MapLibreMap, layer:"standard"|"satellite")=>{
     if(!map.isStyleLoaded())return;
     if(layer==="satellite"){
+      if(map.getLayer("road-alert-road-fallback-layer"))map.setLayoutProperty("road-alert-road-fallback-layer","visibility","none");
       if(!map.getSource("road-alert-satellite")){
         map.addSource("road-alert-satellite",{type:"raster",tiles:[SATELLITE_TILES],tileSize:256,maxzoom:19,attribution:"Imagery © Esri"});
         const layers=map.getStyle().layers||[];
@@ -35,13 +37,19 @@ function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destination
       }
       map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",0.12)}catch{}}});
     }else{
+      if(map.getLayer("road-alert-road-fallback-layer"))map.setLayoutProperty("road-alert-road-fallback-layer","visibility","none");
       if(map.getLayer("road-alert-satellite-layer"))map.removeLayer("road-alert-satellite-layer");
       if(map.getSource("road-alert-satellite"))map.removeSource("road-alert-satellite");
       map.getStyle().layers?.forEach(l=>{if(l.type==="fill"&&!l.id.includes("building")){try{map.setPaintProperty(l.id,"fill-opacity",1)}catch{}}});
     }
+    if(!map.getSource("road-alert-road-fallback")){
+      map.addSource("road-alert-road-fallback",{type:"raster",tiles:[ROAD_FALLBACK_TILES],tileSize:256,maxzoom:20,attribution:"© OpenStreetMap contributors © CARTO"});
+      const firstSymbol=map.getStyle().layers?.find(l=>l.type==="symbol")?.id;
+      map.addLayer({id:"road-alert-road-fallback-layer",type:"raster",source:"road-alert-road-fallback",layout:{visibility:"none"},paint:{"raster-opacity":1}},firstSymbol);
+    }
     if(!map.getSource("road-alert-route")){
       map.addSource("road-alert-route",{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]} }});
-      map.addLayer({id:"road-alert-route-line",type:"line",source:"road-alert-route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#20d889","line-width":6,"line-opacity":0.95}});
+      map.addLayer({id:"road-alert-route-line",type:"line",source:"road-alert-route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#087fce","line-width":["interpolate",["linear"],["zoom"],10,4,16,8,19,11],"line-opacity":1}});
     }
     if(!map.getLayer("road-alert-3d-buildings")&&map.getSource("openmaptiles")){
       try{map.addLayer({id:"road-alert-3d-buildings",source:"openmaptiles","source-layer":"building",type:"fill-extrusion",minzoom:13,filter:["all",["!=",["get","hide_3d"],true]],paint:{"fill-extrusion-color":["coalesce",["get","render_colour"],["get","colour"],"#aeb8c1"],"fill-extrusion-height":["interpolate",["linear"],["zoom"],13,0,15,["coalesce",["get","render_height"],["get","height"],8]],"fill-extrusion-base":["coalesce",["get","render_min_height"],["get","min_height"],0],"fill-extrusion-opacity":0.82}})}catch{/* style may not expose building source */}}
@@ -52,7 +60,18 @@ function RoadMap({mapLayer,driveMode,position,onMapError,originPoint,destination
     mapRef.current=map;
     map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
     map.on("style.load",()=>{setupStyle(map,propsRef.current.mapLayer);setStyleReady(true);});
-    map.on("error",event=>{const sourceId=(event as unknown as {sourceId?:string}).sourceId;if(sourceId==="road-alert-satellite"){propsRef.current.onMapError("ภาพดาวเทียมโหลดไม่สำเร็จ จึงกลับไปใช้แผนที่ถนน");if(map.getLayer("road-alert-satellite-layer"))map.setLayoutProperty("road-alert-satellite-layer","visibility","none");}});
+    map.on("error",event=>{
+      const detail=event as unknown as {sourceId?:string;error?:{message?:string}};
+      const sourceId=detail.sourceId||"";
+      if(sourceId==="road-alert-satellite"){
+        propsRef.current.onMapError("ภาพดาวเทียมโหลดไม่สำเร็จ กำลังแสดงแผนที่ถนนแทน");
+        if(map.getLayer("road-alert-satellite-layer"))map.setLayoutProperty("road-alert-satellite-layer","visibility","none");
+      }
+      if(sourceId==="openmaptiles"||sourceId==="road-alert-satellite"){
+        if(map.getLayer("road-alert-road-fallback-layer"))map.setLayoutProperty("road-alert-road-fallback-layer","visibility","visible");
+        propsRef.current.onMapError("แผนที่หลักโหลดข้อมูลถนนไม่ครบ กำลังเปิดแผนที่ถนนสำรอง");
+      }
+    });
     map.on("click",e=>{const p=propsRef.current;if(p.pickTarget)p.onPick({lat:e.lngLat.lat,lng:e.lngLat.lng},p.pickTarget);});
     return()=>{markersRef.current.forEach(m=>m.remove());markersRef.current=[];map.remove();mapRef.current=null;};
   },[setupStyle]);
