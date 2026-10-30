@@ -174,6 +174,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [waypoints, setWaypoints] = useState<string[]>([]);
+  const [navigationMode, setNavigationMode] = useState(false);
   const [pickTarget, setPickTarget] = useState<"origin" | "destination" | null>(null);
   const [originPoint, setOriginPoint] = useState<RoutePoint | null>(null);
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -333,21 +335,29 @@ export default function App() {
     try {
       const start = originPoint || (origin.trim().toLowerCase() === "ตำแหน่งของฉัน" && position ? { lat: position.lat, lng: position.lng } : await geocode(origin.trim()));
       const end = destinationPoint || await geocode(destination.trim());
-      const url = "https://router.project-osrm.org/route/v1/driving/" + start.lng + "," + start.lat + ";" + end.lng + "," + end.lat + "?overview=full&steps=true&alternatives=true&geometries=geojson";
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("บริการคำนวณเส้นทางไม่พร้อมใช้งาน");
-      const result = await response.json() as { code: string; routes?: RouteResult[] };
-      if (result.code !== "Ok" || !result.routes?.length) throw new Error("ไม่พบเส้นทางขับรถระหว่างสองจุดนี้");
-      const route = result.routes[0];
+      const middle = await Promise.all(waypoints.filter(v=>v.trim()).map(v=>geocode(v.trim())));
+      const stops = [start, ...middle, end];
+      const legs = await Promise.all(stops.slice(0,-1).map(async (point,index)=>{
+        const next=stops[index+1];
+        const url="https://router.project-osrm.org/route/v1/driving/"+point.lng+","+point.lat+";"+next.lng+","+next.lat+"?overview=full&steps=true&geometries=geojson";
+        const response=await fetch(url);
+        if(!response.ok)throw new Error("บริการคำนวณเส้นทางไม่พร้อมใช้งาน");
+        const result=await response.json() as {code:string;routes?:RouteResult[]};
+        if(result.code!=="Ok"||!result.routes?.length)throw new Error("ไม่พบเส้นทางช่วงที่ "+(index+1)+" กรุณาตรวจสอบจุดพัก");
+        return result.routes[0];
+      }));
+      const route:RouteResult={distance:legs.reduce((n,r)=>n+r.distance,0),duration:legs.reduce((n,r)=>n+r.duration,0),geometry:{coordinates:legs.flatMap((r,i)=>i?r.geometry.coordinates.slice(1):r.geometry.coordinates)},legs:legs.flatMap(r=>r.legs||[])};
+      const routes=[route];
       setOriginPoint(start);
       setDestinationPoint(end);
-      setRouteOptions(result.routes);
+      setRouteOptions(routes);
       setSelectedRouteIndex(0);
       const points = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       setRoutePoints(points);
       setRouteSteps((route.legs||[]).flatMap(l=>l.steps).filter(s=>s.maneuver?.location));
       setRouteSummary("ระยะทางประมาณ " + (route.distance / 1000).toFixed(1) + " กม. · ใช้เวลาประมาณ " + Math.max(1, Math.round(route.duration / 60)) + " นาที");
       if(voiceOn&&route.legs?.[0]?.steps?.[0])speakThai("เริ่มนำทาง "+stepText(route.legs[0].steps[0]));
+      setNavigationMode(false);
     } catch (error) {
       setRouteError(error instanceof Error ? error.message : "ค้นหาเส้นทางไม่สำเร็จ");
       setRoutePoints([]);
@@ -380,6 +390,8 @@ export default function App() {
     <section className="map-wrap" id="road-alert-map">
       <RoadMap mapLayer={mapLayer} driveMode={driveMode} position={position} onMapError={message=>{setMapNotice(message);setMapLayer("standard");}} originPoint={originPoint} destinationPoint={destinationPoint} routePoints={routePoints} sharing={sharing} vehicles={nearby} hazards={hazards} pickTarget={pickTarget} onPick={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดที่เลือกบนแผนที่");}else{setDestinationPoint(point);setDestination("จุดที่เลือกบนแผนที่");}setPickTarget(null);setRouteError("");setNotice("เลือกตำแหน่งจากแผนที่แล้ว");}} onMovePin={(point,target)=>{if(target==="origin"){setOriginPoint(point);setOrigin("จุดเริ่มต้นที่ย้ายหมุด");}else{setDestinationPoint(point);setDestination("ปลายทางที่ย้ายหมุด");}setRoutePoints([]);setRouteOptions([]);setRouteSummary("");setNotice("ย้ายหมุดแล้ว กดค้นหาเส้นทางอีกครั้ง");}} />
       <div className="map-tools"><button className="map-tool-btn" onClick={()=>setDriveMode(v=>!v)}><Navigation size={17}/>{driveMode?"มุมมองแผนที่":"มุมมองบนรถ"}</button><button className="map-tool-btn" onClick={()=>{setMapNotice("");setMapLayer(mapLayer==="standard"?"satellite":"standard");}}><Layers size={17}/>{mapLayer==="standard"?"ภาพดาวเทียม 3D":"แผนที่ถนน 3D"}</button><button className="locate-btn" onClick={locate} disabled={busy}><LocateFixed size={18}/>{busy ? "กำลังค้นหา..." : "ตำแหน่งของฉัน"}</button></div>{driveMode&&<div className="drive-hud"><div><strong>{position?.speed!==null&&position?.speed!==undefined&&position.speed>=0?Math.round(position.speed*3.6):"--"}</strong><small>กม./ชม.</small></div><span>{position?`GPS ±${Math.round(position.accuracy)} ม.`:"รอสัญญาณ GPS"}</span></div>}
+      {navigationMode&&routeSteps.length>0&&<div className="navigation-mode-banner"><div className="nav-turn-icon"><Navigation size={32}/><small>{Math.round(routeSteps[currentStep]?.distance||0)} ม.</small></div><div className="nav-turn-copy"><strong>{stepText(routeSteps[currentStep])}</strong><small>{routeSummary}</small></div></div>}
+      {navigationMode&&<div className="navigation-mode-bottom"><div><strong>{routeSummary||"กำลังนำทาง"}</strong><small>{position?.speed!=null?Math.round(position.speed*3.6)+" กม./ชม.":"รอข้อมูลความเร็ว GPS"}</small></div><button onClick={()=>{setNavigationMode(false);setDriveMode(false);window.speechSynthesis?.cancel();}}>จบการนำทาง</button></div>}
       <button className="map-menu-trigger" aria-label="เปิดเมนู Road Alert" onClick={()=>setMobileMenuOpen(true)}><Menu size={18}/> เมนู</button>
       <div className="map-traffic-status" role="status"><div className="traffic-count"><strong>{nearby.length}</strong><span>รถที่แชร์ตำแหน่ง</span></div><div className="traffic-count"><strong>{nearbyHazards.length}</strong><span>เหตุอันตราย</span></div>{nearby.length>0&&<div className="traffic-nearest"><strong>รถใกล้สุด {Math.round(nearby[0].distance)} ม.</strong><span>{nearby[0].speed!==null&&nearby[0].speed>=0?"ความเร็ว "+Math.round(nearby[0].speed*3.6)+" กม./ชม.":"ความเร็วไม่พร้อมใช้งาน"}</span></div>}</div>
       {mapNotice&&<button className="map-fallback-notice" onClick={()=>setMapNotice("")}><AlertTriangle size={14}/>{mapNotice} ×</button>}
@@ -392,12 +404,15 @@ export default function App() {
         <form className="route-form" onSubmit={searchRoute}>
           <label>จาก<div className="place-search-field"><input autoComplete="off" value={origin} onFocus={() => setActiveSearchField("origin")} onChange={e => { setActiveSearchField("origin"); setOrigin(e.target.value); setOriginPoint(null); setSuggestionError(""); }} placeholder="เช่น ตำแหน่งของฉัน หรือพิมพ์ว่า สนาม" />{activeSearchField === "origin" && origin.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : originSuggestions.length ? originSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setOrigin(place.label);setOriginPoint({lat:place.lat,lng:place.lng});setOriginSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">{suggestionError || "ยังไม่พบสถานที่ ลองเพิ่มคำ เช่น สนามกีฬา สนามฟุตบอล หรือระบุอำเภอ"}</div>}</div>}</div></label>
           <label>ไปยัง<div className="place-search-field"><input autoComplete="off" value={destination} onFocus={() => setActiveSearchField("destination")} onChange={e => { setActiveSearchField("destination"); setDestination(e.target.value); setDestinationPoint(null); setSuggestionError(""); }} placeholder="พิมพ์ชื่อบางส่วน เช่น สนาม โรงเรียน ตลาด" />{activeSearchField === "destination" && destination.trim().length >= 2 && <div className="place-suggestions" role="listbox">{suggestionsLoading ? <div className="suggestion-status">กำลังค้นหาสถานที่ใกล้เคียง…</div> : destinationSuggestions.length ? destinationSuggestions.map((place,index)=><button type="button" key={place.label+index} role="option" onClick={() => {setDestination(place.label);setDestinationPoint({lat:place.lat,lng:place.lng});setDestinationSuggestions([]);setActiveSearchField(null);}}><MapPin size={17}/><span><strong>{place.name}</strong><small>{place.label}</small></span></button>) : <div className="suggestion-status">{suggestionError || "ยังไม่พบสถานที่ ลองเพิ่มคำ เช่น สนามกีฬา สนามฟุตบอล หรือระบุอำเภอ"}</div>}</div>}</div></label>
+          {waypoints.map((point,index)=><label key={index}>จุดพัก {index+1}<div className="waypoint-input-row"><input value={point} onChange={e=>setWaypoints(old=>old.map((v,i)=>i===index?e.target.value:v))} placeholder="ค้นหาสถานที่พักระหว่างทาง"/><button type="button" aria-label="ลบจุดพัก" onClick={()=>setWaypoints(old=>old.filter((_,i)=>i!==index))}>×</button></div></label>)}
+          <button type="button" className="add-waypoint-btn" onClick={()=>setWaypoints(old=>[...old,""])}>＋ เพิ่มจุดพัก (Waypoint)</button>
           <button type="submit" className="route-btn" disabled={routeBusy}><Navigation size={17}/>{routeBusy ? "กำลังค้นหา..." : "ค้นหาเส้นทาง"}</button>
         </form>
         {routeSummary && <p className="route-summary">{routeSummary} <span>· เส้นทางจากข้อมูลแผนที่ ไม่ใช่คำแนะนำจราจรสด</span></p>}
         {routeError && <p className="route-error"><AlertTriangle size={15}/>{routeError}</p>}
         {routeOptions.length > 0 && <div className="route-options"><h3>เลือกเส้นทาง</h3>{routeOptions.map((route,index)=><button type="button" key={index} className={selectedRouteIndex===index?"route-option selected":"route-option"} onClick={()=>chooseRoute(route,index)}><span className="route-option-icon"><Navigation size={18}/></span><span className="route-option-main"><strong>{Math.max(1,Math.round(route.duration/60))} นาที</strong><small>{(route.distance/1000).toFixed(1)} กม. · {index===0?"เส้นทางแนะนำ":"เส้นทางทางเลือก "+(index+1)}</small></span>{selectedRouteIndex===index&&<span className="route-option-check">เลือกแล้ว</span>}</button>)}</div>}
         <div className="map-pick-controls"><span>หรือเลือกจุดจากแผนที่</span><button type="button" className={pickTarget==="origin"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="origin"?null:"origin")}><MapPin size={15}/>เลือกจุดเริ่มต้น</button><button type="button" className={pickTarget==="destination"?"pick-btn selected":"pick-btn"} onClick={()=>setPickTarget(pickTarget==="destination"?null:"destination")}><MapPin size={15}/>เลือกปลายทาง</button>{pickTarget&&<small>แตะตำแหน่งบนแผนที่เพื่อกำหนด{pickTarget==="origin"?"จุดเริ่มต้น":"ปลายทาง"}</small>}</div>
+        {routeSteps.length>0&&<button type="button" className="start-navigation-btn" onClick={()=>{setNavigationMode(true);setDriveMode(true);if(voiceOn)speakThai("เริ่มนำทาง "+stepText(routeSteps[currentStep]));}}>▶ เริ่มนำทางเต็มหน้าจอ</button>}
         <div className="navigation-controls"><button className={voiceOn?"voice-btn active":"voice-btn"} onClick={()=>{const n=!voiceOn;setVoiceOn(n);if(!n)window.speechSynthesis?.cancel();else if(routeSteps[currentStep])speakThai(stepText(routeSteps[currentStep]));}}><Volume2 size={17}/>{voiceOn?"เสียงภาษาไทยเปิด":"เปิดเสียงนำทาง"}</button>{routeSteps.length>0&&<div className="next-turn"><Navigation size={18}/><div><small>คำสั่งถัดไป</small><strong>{stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)])}</strong></div><button onClick={()=>speakThai(stepText(routeSteps[Math.min(currentStep+1,routeSteps.length-1)]))} aria-label="ฟังคำสั่ง"><Volume2 size={16}/></button></div>}</div>
       </section>
             <section className="content">
